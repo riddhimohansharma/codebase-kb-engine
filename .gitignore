@@ -3,3 +3,6 @@
 *.bak
 *-kb/
 .env
+# local planning docs — never published
+ckb-implementation-plan.md
+*.plan.md

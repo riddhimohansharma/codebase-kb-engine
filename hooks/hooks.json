@@ -1,13 +1,14 @@
 {
-  "description": "Read-only enforcement gate: blocks all writes, deletes, installs, builds.",
+  "description": "Session-scoped read-only gate. Arms on engine commands (/kb, /kb-validate, /map, /hunt, /plan) or plugin-script use; /kb-unlock or session end disarms. Unarmed sessions are never affected.",
   "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/arm.sh\"" } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/arm.sh\"" } ] }
+    ],
     "PreToolUse": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh" }
-        ]
-      }
+      { "matcher": ".*", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh\"" } ] }
     ]
   }
 }

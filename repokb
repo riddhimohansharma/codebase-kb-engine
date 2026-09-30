@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# repokb — repository-kb-engine, one command. User- and AI-friendly.
+# repokb — local wrapper for the codebase-kb-engine plugin (optional; marketplace installs use /kb directly).
 # Self-locating (symlink/PATH safe). Read-only toward code; writes only a KB under KB_DIR.
 set -euo pipefail
 
@@ -10,7 +10,7 @@ while [ -h "$src" ]; do
   src="$(readlink "$src")"; case "$src" in /*) ;; *) src="$d/$src" ;; esac
 done
 ENGINE="$(cd -P "$(dirname "$src")" >/dev/null 2>&1 && pwd)"
-VERSION="0.4.1"
+VERSION="$(jq -r .version "$ENGINE/.claude-plugin/plugin.json" 2>/dev/null || echo unknown)"
 
 # self-heal: the read-only gate must be executable or it won't fire
 if [ -e "$ENGINE/hooks/guard.sh" ] && [ ! -x "$ENGINE/hooks/guard.sh" ]; then
@@ -22,7 +22,7 @@ say(){ printf '%s\n' "$*" >&2; }
 die(){ printf 'repokb: %s\n' "$1" >&2; exit "${2:-1}"; }
 
 usage(){ cat >&2 <<'HELPDOC'
-repokb — read-only repo analysis + knowledge base (one command)
+repokb — codebase-kb-engine local wrapper: read-only repo analysis + CKB knowledge base
 
 USAGE
   repokb <command> [global-opts] [args]
@@ -43,7 +43,7 @@ GLOBAL OPTIONS
   --kb-dir DIR   KB output dir (else $KB_DIR, else <repo>-kb sibling)
 
 ENV  KB_DIR · REPOKB_MODEL (model) · REPOKB_MAX_TURNS
-SAFETY  a fail-closed hook keeps the repo read-only; writes go only to KB_DIR.
+SAFETY  wrapper sessions run with CKB_ENFORCE=always: the repo is read-only; writes go only to the marked KB dir.
 
 EXAMPLES
   repokb doctor
@@ -70,7 +70,10 @@ cmd="${1:-help}"; [ $# -gt 0 ] && shift || true
 
 need_claude(){ command -v claude >/dev/null 2>&1 || die "claude not found in PATH"; }
 resolve_repo(){ [ -n "${1:-}" ] || die "missing <repo> path"; [ -d "$1" ] || die "not a directory: $1"; (cd "$1" && pwd); }
-resolve_kb(){ local kb="${KB_OVERRIDE:-$(dirname "$1")/$(basename "$1")-kb}"; mkdir -p "$kb"; (cd "$kb" && pwd); }
+resolve_kb(){ # delegates to the plugin's resolver: refuses KB inside the repo, creates the .ckb-output marker
+  local out chk=(); [ "$DRY" = 1 ] && chk=(--check)
+  out="$(KB_DIR="$KB_OVERRIDE" "$ENGINE/scripts/resolve-kb.sh" "$1" ${chk[@]+"${chk[@]}"})" || exit $?
+  printf '%s\n' "$out" | sed -n 's/^KB_DIR=//p'; }
 
 # headless: $1 = prompt, $2 = addkb(0/1). Uses globals REPO, KB.
 headless(){
@@ -85,7 +88,7 @@ headless(){
     printf '( cd %q && claude' "$REPO"; printf ' %q' "${flags[@]}"; printf ' )\n'; return 0
   fi
   need_claude
-  ( cd "$REPO" && claude "${flags[@]}" )
+  ( cd "$REPO" && CKB_ENFORCE=always claude "${flags[@]}" )
 }
 
 trailer(){ # $1 = rc ; prints a machine-readable status line unless JSON/DRY
@@ -125,13 +128,14 @@ case "$cmd" in
     KB="$(resolve_kb "$REPO")"; need_claude
     say "engine : $ENGINE"; say "repo   : $REPO   (read-only)"; say "KB_DIR : $KB   (writable — KB output only)"
     export KB_DIR="$KB"
-    ( cd "$REPO" && exec claude --plugin-dir "$ENGINE" --add-dir "$KB" "$@" ) ;;
+    ( cd "$REPO" && CKB_ENFORCE=always exec claude --plugin-dir "$ENGINE" --add-dir "$KB" "$@" ) ;;
 
   doctor)
     ok=1
     if command -v claude >/dev/null 2>&1; then say "claude : $(claude --version 2>/dev/null | head -1)"; else say "claude : MISSING"; ok=0; fi
-    if command -v jq >/dev/null 2>&1; then say "jq     : $(jq --version 2>/dev/null)"; else say "jq     : MISSING (gate still fails closed)"; fi
-    for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json hooks/guard.sh commands/kb.md commands/map.md commands/hunt.md commands/plan.md skills/kb/SKILL.md; do
+    if command -v jq >/dev/null 2>&1; then say "jq     : $(jq --version 2>/dev/null)"; else say "jq     : MISSING (required by finalize/validate)"; ok=0; fi
+    if command -v uvx >/dev/null 2>&1; then say "uvx    : $(uvx --version 2>/dev/null)"; else say "uvx    : MISSING (schema validation will report SKIPPED)"; fi
+    for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json hooks/guard.sh hooks/arm.sh commands/kb.md commands/kb-validate.md commands/kb-unlock.md skills/kb/SKILL.md skills/ckb-contract/SKILL.md scripts/resolve-kb.sh scripts/clone.sh scripts/finalize.sh scripts/validate.sh scripts/normalize.jq spec/v0.1/ckb.schema.json spec/v0.1/semantic.jq; do
       if [ -e "$ENGINE/$f" ]; then say "ok     : $f"; else say "MISSING: $f"; ok=0; fi
     done
     [ -x "$ENGINE/hooks/guard.sh" ] || say "warn   : hooks/guard.sh not executable (chmod +x)"
@@ -142,7 +146,7 @@ case "$cmd" in
   install)
     dir="${1:-$HOME/.local/bin}"
     mkdir -p "$dir"
-    chmod +x "$ENGINE/repokb" "$ENGINE/run.sh" "$ENGINE/hooks/guard.sh" 2>/dev/null || true
+    chmod +x "$ENGINE/repokb" "$ENGINE/run.sh" "$ENGINE"/hooks/*.sh "$ENGINE"/scripts/*.sh 2>/dev/null || true
     ln -sf "$ENGINE/repokb" "$dir/repokb"
     say "linked : $dir/repokb -> $ENGINE/repokb"
     sh_name="$(basename "${SHELL:-sh}")"

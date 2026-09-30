@@ -1,0 +1,5 @@
+repository=https://github.com/riddhimohansharma/ckb-spec.git
+commit=7a7c75432a67f728e6979b06b50e23551c28f8ac
+version=0.1
+synced_at=2026-09-30T23:21:53Z
+files=ckb.schema.json semantic.jq

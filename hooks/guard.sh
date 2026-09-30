@@ -1,35 +1,88 @@
 #!/usr/bin/env bash
-# Read-only enforcement gate for repository-kb-engine.
+# Read-only enforcement gate for codebase-kb-engine (PreToolUse, all tools).
 # Contract: exit 2 = BLOCK (reason -> stderr, returned to Claude); exit 0 = ALLOW.
-# Policy: allow read/inspect tools and a read-only Bash allowlist; block every
-# tool or command that can write, delete, install, build, or deploy.
-# Fails CLOSED: unparseable input, unknown tools that aren't clearly reads, and
-# any command whose segment head is not on the allowlist are all blocked.
+#
+# SCOPE: enforces only in sessions that are ARMED (an engine command was typed, or a plugin
+# script was invoked — see arm.sh), or when CKB_ENFORCE=always (set by the repokb/run.sh wrappers).
+# Unarmed sessions pass through untouched, so installing the plugin never locks normal work.
+#
+# POLICY when enforcing — fails CLOSED:
+#   · Write/Edit only inside a dir marked `.ckb-output` (created by scripts/resolve-kb.sh), never inside
+#     the marker's target repo or the session's git work tree; symlinks resolved before checking.
+#   · Bash: plugin's own scripts, plus a read-only command allowlist; every segment head is checked.
+#   · Any tool not on the known non-mutating list is blocked (MCP tools included).
 set -uo pipefail
 payload="$(cat)"
-block(){ echo "BLOCKED by read-only engine: $*" >&2; exit 2; }
-under_kb(){ # $1 = path; true only if KB_DIR set and path is inside it
-  [ -n "${KB_DIR:-}" ] || return 1
-  case "$1" in "$KB_DIR"|"$KB_DIR"/*) return 0 ;; *) return 1 ;; esac
-}
+GUARD_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+PLUGIN_ROOT="$(cd "$GUARD_DIR/.." && pwd -P)"
+STATE="${CLAUDE_PLUGIN_DATA:-${TMPDIR:-/tmp}/ckb-guard}/armed"
+block(){ echo "BLOCKED by codebase-kb-engine read-only mode: $*" >&2; exit 2; }
 jqget(){ command -v jq >/dev/null 2>&1 && printf '%s' "$payload" | jq -r "$1 // empty" 2>/dev/null; }
+rawget(){ printf '%s' "$payload" | grep -oE "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 | sed -E 's/.*"([^"]*)"$/\1/'; }
 
-tool="$(jqget '.tool_name')"
-[ -z "${tool:-}" ] && tool="$(printf '%s' "$payload" | grep -oE '"tool_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*"([^"]*)"$/\1/')"
+sid="$(jqget '.session_id')"; [ -z "${sid:-}" ] && sid="$(rawget session_id)"
+sid="$(printf '%s' "${sid:-}" | tr -cd 'A-Za-z0-9_-')"
+tool="$(jqget '.tool_name')"; [ -z "${tool:-}" ] && tool="$(rawget tool_name)"
+cwd="$(jqget '.cwd')"; [ -z "${cwd:-}" ] && cwd="$(rawget cwd)"; [ -z "${cwd:-}" ] && cwd="$PWD"
+
+SCRIPTS='resolve-kb.sh|clone.sh|finalize.sh|validate.sh'
+is_plugin_script(){ # $1 = command head; true only for this plugin's own scripts, by real path
+  local d b
+  case "$1" in */scripts/*) ;; *) return 1 ;; esac
+  b="$(basename "$1")"; printf '%s' "$b" | grep -qxE "$SCRIPTS" || return 1
+  d="$(cd "$(dirname "$1")" 2>/dev/null && pwd -P)" || return 1
+  [ "$d" = "$PLUGIN_ROOT/scripts" ]
+}
+
+armed(){
+  [ "${CKB_ENFORCE:-}" = always ] && return 0
+  [ -n "$sid" ] && [ -f "$STATE/$sid" ] && [ -z "$(find "$STATE/$sid" -mmin +1440 2>/dev/null)" ] && return 0
+  return 1
+}
+arm(){ [ -n "$sid" ] && mkdir -p "$STATE" 2>/dev/null && chmod 700 "$STATE" 2>/dev/null && : > "$STATE/$sid"; }
+
+# Invoking a plugin script arms the session (arming only ever adds restriction, so the model may trigger it).
+if [ "${tool:-}" = Bash ]; then
+  c0="$(jqget '.tool_input.command')"
+  first="$(printf '%s' "${c0:-}" | sed -E 's/^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*//' | awk '{print $1}' | tr -d "\"'")"
+  is_plugin_script "${first:-}" && arm
+fi
+armed || exit 0
+
+canon(){ # canonical absolute path for a possibly-nonexistent path (symlinks in existing part resolved)
+  local p="$1" rest=""
+  case "$p" in /*) ;; *) p="$cwd/$p" ;; esac
+  while [ ! -d "$p" ]; do rest="/$(basename "$p")$rest"; p="$(dirname "$p")"; done
+  printf '%s%s\n' "$(cd "$p" && pwd -P)" "$rest"
+}
+inside(){ case "$1/" in "$2"/*) return 0 ;; *) return 1 ;; esac; }
+kb_root_of(){ # nearest ancestor dir carrying .ckb-output
+  local d; d="$(dirname "$1")"
+  while [ "$d" != "/" ] && [ -n "$d" ]; do [ -f "$d/.ckb-output" ] && { printf '%s\n' "$d"; return 0; }; d="$(dirname "$d")"; done
+  return 1
+}
+write_allowed(){ # $1 = raw file path
+  local fp kb tr wt
+  case "$1" in *..*) block "write path contains '..': $1" ;; "") block "write with no path (fail-closed)" ;; esac
+  fp="$(canon "$1")"
+  kb="$(kb_root_of "$fp")" || block "writes are allowed only inside a CKB output dir (.ckb-output marker); denied: $fp"
+  tr="$(sed -n 's/^target_root=//p' "$kb/.ckb-output" | head -1)"
+  [ -n "$tr" ] && inside "$fp" "$tr" && block "path is inside the analysed repo ($tr); denied: $fp"
+  wt="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" && [ -n "$wt" ] && wt="$(cd "$wt" && pwd -P)" && inside "$fp" "$wt" \
+    && block "path is inside the session's git work tree ($wt); denied: $fp"
+  return 0
+}
 
 case "${tool:-}" in
-  Bash) ;;                                              # inspect the command below
+  Bash) ;;                                                # inspect the command below
   Write|Edit|MultiEdit)
     fp="$(jqget '.tool_input.file_path')"; [ -z "${fp:-}" ] && fp="$(jqget '.tool_input.path')"
-    case "${fp:-}" in *..*) block "write path contains '..': ${fp:-}";; esac
-    under_kb "${fp:-}" && exit 0
-    block "'$tool' may only write under KB_DIR (${KB_DIR:-unset}); denied: ${fp:-<none>}." ;;
-  NotebookEdit)
-    block "tool '$tool' modifies files; this engine is read-only." ;;
-  "")
-    block "could not determine tool name (fail-closed)." ;;
-  *)
-    exit 0 ;;                                            # Read/Grep/Glob/WebFetch/WebSearch/Task/TodoWrite/...
+    write_allowed "${fp:-}"; exit 0 ;;
+  NotebookEdit) block "tool '$tool' modifies files." ;;
+  "") block "could not determine tool name (fail-closed)." ;;
+  Read|Grep|Glob|LS|WebFetch|WebSearch|Task|Agent|Skill|ToolSearch|TodoWrite|TodoRead|TaskCreate|TaskUpdate|TaskList|TaskGet|TaskOutput|BashOutput|KillShell|KillBash|TaskStop|AskUserQuestion|EnterPlanMode|ExitPlanMode|SendMessage|ListMcpResourcesTool|ReadMcpResourceTool)
+    exit 0 ;;
+  *) block "tool '$tool' is not on the read-only allowlist (type /kb-unlock to leave read-only mode)." ;;
 esac
 
 cmd="$(jqget '.tool_input.command')"
@@ -51,7 +104,7 @@ printf '%s' "$cmd" | grep -qiE '(^|[^[:alnum:]_./-])(rm|rmdir|unlink|shred|mkfs[
   && block "destructive/write command: $cmd"
 printf '%s' "$cmd" | grep -qiE '(^|[^[:alnum:]_./-])(npm|pnpm|yarn|pip[0-9]*|pipx|poetry|cargo|go|apt|apt-get|dpkg|brew|gem|composer|make|cmake|gradle|mvn|docker|podman|kubectl|terraform|helm|ansible|systemctl|service)([[:space:]]|$)' \
   && block "build/install/deploy command (blocked in read-only engine): $cmd"
-printf '%s' "$cmd" | grep -qiE '(curl|wget|fetch)[[:space:]].*\|[[:space:]]*(ba|z|k|)?sh([[:space:]]|$)' \
+printf '%s' "$cmd" | grep -qiE '(curl|wget|fetch)[[:space:]].*\|[[:space:]]*(ba|z|k)?sh([[:space:]]|$)' \
   && block "pipe-to-shell: $cmd"
 printf '%s' "$cmd" | grep -qE ':\(\)[[:space:]]*\{[[:space:]]*:' && block "fork bomb: $cmd"
 
@@ -63,6 +116,7 @@ sc="$(printf '%s' "$cmd" \
 # normalize all shell separators to ';' (portable), then split on newlines via tr
 sc="$(printf '%s' "$sc" | sed -E 's/\|\|/;/g; s/&&/;/g; s/\|/;/g; s/&/;/g')"
 segs="$(printf '%s' "$sc" | tr ';' '\n')"
+all_plugin=1
 READ='^(ls|cat|head|tail|bat|less|more|grep|egrep|fgrep|rg|ag|find|fd|tree|wc|stat|file|du|df|pwd|echo|printf|true|:|test|\[|which|type|whoami|id|uname|hostname|date|sort|uniq|cut|tr|column|nl|tac|comm|diff|jq|yq|awk|sed|xxd|od|hexdump|strings|md5sum|sha256sum|shasum|cksum|basename|dirname|realpath|readlink|expr|seq|env|printenv|cd|pushd|popd|dirs|man|cloc|tokei|wait|sleep|for|while|if|case|read)$'
 while IFS= read -r seg; do
   seg="$(printf '%s' "$seg" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
@@ -80,8 +134,10 @@ while IFS= read -r seg; do
     esac
     [ -z "$seg" ] && break
   done
-  h="$(printf '%s' "$seg" | awk '{print $1}')"
+  h="$(printf '%s' "$seg" | awk '{print $1}' | tr -d "\"'")"
   [ -z "$h" ] && continue
+  if is_plugin_script "$h"; then continue; fi
+  all_plugin=0
   if [ "$h" = "git" ]; then
     printf '%s' "$seg" | grep -qiE 'git[[:space:]]+(add|commit|push|pull|fetch|clone|init|reset|checkout|switch|restore|merge|rebase|stash|rm|mv|clean|apply|am|cherry-pick|revert|format-patch|update-ref|update-index|write-tree|commit-tree|gc|prune|repack|worktree|submodule|notes|filter-branch|fast-import|replace|mktag|mktree)([[:space:]]|$)' \
       && block "git write op: $cmd"
@@ -103,4 +159,9 @@ while IFS= read -r seg; do
 done <<SEG
 $segs
 SEG
+# A command made only of this plugin's own scripts is pre-approved: without this, marketplace installs
+# hit an approval prompt (the scripts live outside the project dir) that headless runs cannot answer.
+if [ "$all_plugin" = 1 ]; then
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"codebase-kb-engine: plugin-owned script, verified by real path"}}'
+fi
 exit 0

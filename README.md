@@ -1,163 +1,121 @@
-# repository-kb-engine
+# Codebase KB Engine
 
-A portable, **read-only** Claude Code plugin you point at any repository. Runs fully
-locally (no network). A fail-closed hook blocks every edit/delete/install/build — its one
-permitted write is a knowledge base under `KB_DIR`, outside the repo.
+A Claude Code plugin that generates a **verifiable knowledge base for any repository** and never modifies the repository.
 
----
+Each run produces:
 
-## Fast start (3 steps)
+| File | For | Contents |
+|---|---|---|
+| `00-overview.md` | people | Elevator pitch, executive summary, glossary, macro context |
+| `01-technical-architecture.md` | people | Components, data model, interfaces, dependencies, deployment, non-functional posture (mermaid) |
+| `02-functional-workflows.md` | people | Capabilities, actors, end-to-end workflows, state machines (mermaid) |
+| `03-business-rules.md` | people | Rule catalog with enforcement sites and a traceability matrix |
+| `04-system-context-and-gaps.md` | people | System-of-systems map, contracts exposed and consumed, risks, unknowns |
+| **`ckb.json`** | machines | The same facts in the open **CKB v0.1** format ([spec](https://github.com/riddhimohansharma/ckb-spec)) |
+| `manifest.json` | machines | Job identity, status, output checksums, validation result, confidence roll-up |
+
+Every claim cites `path:line` and carries a confidence level: **confirmed** (stated at the cited line), **inferred** (derived from structure), or **unknown** (looked for, not determinable). Nothing inferred is presented as fact.
+
+## Install
+
+```text
+/plugin marketplace add riddhimohansharma/codebase-kb-engine
+/plugin install codebase-kb-engine@codebase-kb-engine
+```
+
+From a terminal: `claude plugin marketplace add riddhimohansharma/codebase-kb-engine && claude plugin install codebase-kb-engine@codebase-kb-engine`. Updates arrive when the plugin version changes: `/plugin marketplace update codebase-kb-engine`.
+
+**Requirements:** Claude Code, `git`, `jq` 1.6 or later, and [`uv`](https://docs.astral.sh/uv/) (optional, strongly recommended). Without `uv`, the JSON Schema check in `/kb-validate` is reported as **SKIPPED**, never as passed.
+
+## Use
+
+```text
+/kb                                   # analyse the repo you're in
+/kb billing                           # same, weighted toward a subsystem
+/kb https://github.com/org/repo       # analyse a remote repo (default branch detected, not assumed)
+/kb git@github.com:org/repo.git dev   # a specific branch
+/kb-validate                          # check the generated ckb.json against the spec
+/kb-unlock                            # leave read-only mode for this session
+```
+
+Headless:
 
 ```bash
-# 1. unzip into a FRESH parent folder (not one already named repository-kb-engine)
-unzip -o repository-kb-engine.zip -d ~/tools
-
-# 2. one command: fixes permissions, wires PATH (fish/zsh/bash), health-checks
-bash ~/tools/repository-kb-engine/bootstrap.sh
-
-# 3. open a NEW terminal, then:
-repokb doctor
-repokb kb /path/to/your-repo          # KB -> /path/to/your-repo-kb; repo untouched
+mkdir -p ../myrepo-kb && claude -p "/kb" --add-dir ../myrepo-kb --output-format json
 ```
 
-That's it. Requires Claude Code + `jq` (`brew install jq`). `bootstrap.sh` self-heals the
-executable bit, auto-corrects accidental double-nesting, and installs `repokb` to `~/.local/bin`.
+The JSON output includes token usage. `manifest.json` records `token_usage: null` because a session can't observe its own usage.
 
-**No PATH? / prefer explicit:** just call it by path — `~/tools/repository-kb-engine/repokb kb <repo>`.
+### Where output goes
 
----
+1. `$KB_DIR` if set, otherwise
+2. a sibling of the repo: `../<repo-name>-kb/`. In URL mode, the sibling is placed next to your current git work tree (or inside the current directory if you're not in one).
 
-## The `repokb` command
+The KB is **never written inside the analysed repo**, and the resolver refuses to try. If Claude Code hasn't been granted the output directory, `/kb` prints one line to copy, for example `mkdir -p /path/to/myrepo-kb && claude --add-dir /path/to/myrepo-kb`, and stops. The only thing it leaves behind is the empty, marked output directory, which is created on purpose because Claude Code ignores `--add-dir` for a path that doesn't exist yet. An existing, non-empty directory is used only if it carries the `.ckb-output` marker, so an unrelated folder can't be overwritten.
 
-```
-repokb kb    <repo> [focus]   Full knowledge base (headless) into KB_DIR
-repokb map   <repo>           Tri-lens recon (headless)
-repokb hunt  <repo> [theme]   Leverage-ranked initiatives (headless)
-repokb plan  <repo> <what>    Five-step plan + patch as text (headless)
-repokb run   <repo> [--...]   Interactive session (human)
-repokb doctor                 Environment + engine health
-repokb install [dir]          (Re)link repokb onto PATH; default ~/.local/bin
-repokb help | version
-```
+## Safety model
 
-Global: `--json` (machine-readable), `--dry-run` (print the command, don't run),
-`--kb-dir DIR`. Env: `KB_DIR`, `REPOKB_MODEL`, `REPOKB_MAX_TURNS`.
+"Read-only" is enforced by a hook, not merely requested in a prompt.
 
-- **Human:** `repokb run ~/code/app` → interactive; `/kb /map /hunt /plan` available.
-- **AI / automation:** `repokb kb ~/code/app --json` → headless, no prompts, emits
-  `STATUS=OK KB_DIR=... FILES=5` and a real exit code. Safety is unchanged — the
-  `PreToolUse` hook fires in every permission mode, so pre-approving tools never lets a
-  write escape `KB_DIR`.
+**Scope.** The gate arms for a session when you run `/kb`, `/kb-validate`, `/map`, `/hunt` or `/plan`, or when any of the plugin's scripts runs. Arming only ever adds restrictions, so the model may trigger it but can't undo it. Only a human-typed `/kb-unlock`, or the end of the session, disarms it. **Sessions that never use the plugin are not affected at all.**
 
----
+**While armed, the gate fails closed:**
 
-## Usage guide (step-by-step)
-
-**Setup** — see [Fast start](#fast-start-3-steps) above (unzip, `bootstrap.sh`, `repokb doctor`).
-
-**Day-to-day**
-
-1. Point it at a repo (read-only — nothing in the repo is ever touched):
-   ```bash
-   repokb kb ~/code/myapp
-   ```
-   Generates the 5 knowledge-base files into `~/code/myapp-kb` (sibling folder, auto-created).
-2. Or run a narrower command depending on what you need:
-   ```bash
-   repokb map  ~/code/myapp                # tri-lens recon
-   repokb hunt ~/code/myapp billing        # leverage-ranked initiatives, optionally scoped to a theme
-   repokb plan ~/code/myapp "add caching"  # 5-step plan + patch, as text
-   ```
-3. Focus a KB run on one area instead of the whole repo:
-   ```bash
-   repokb kb ~/code/myapp billing
-   ```
-4. Interactive mode (human-in-the-loop, slash commands `/kb /map /hunt /plan` available):
-   ```bash
-   repokb run ~/code/myapp
-   ```
-
-**Automation / scripting**
-
-5. Machine-readable output:
-   ```bash
-   repokb kb ~/code/myapp --json
-   ```
-6. Preview without executing (prints the exact `claude` command it would run):
-   ```bash
-   repokb kb ~/code/myapp --dry-run
-   ```
-7. Override output location or env:
-   ```bash
-   repokb kb ~/code/myapp --kb-dir /custom/path
-   KB_DIR=/custom/path repokb kb ~/code/myapp
-   REPOKB_MODEL=... REPOKB_MAX_TURNS=... repokb kb ~/code/myapp
-   ```
-
-**Checking results**
-
-8. Read the KB output — see the five-file table below. Every claim cites `path:line`;
-   legend `[C]` confirmed · `[I]` inferred · `[?]` unknown.
-9. Exit code / status line tells you if it worked: `STATUS=OK KB_DIR=... FILES=5` on success.
-
-**If something breaks** — see [Troubleshooting](#troubleshooting) below, or run `repokb doctor` /
-`repokb help` any time.
-
----
-
-## Knowledge base (`repokb kb`) — five files in `KB_DIR` (default `<repo>-kb`)
-
-| File | Contents |
+| Action | Result |
 |---|---|
-| `00-overview.md` | appname, KB metadata, summary, glossary, macro context. |
-| `01-technical-architecture.md` | components, data model, interfaces/contracts, dependencies, runtime/deploy, non-functional (security/PHI/perf/reliability), mermaid. |
-| `02-functional-workflows.md` | capabilities, actors, workflows (mermaid), state machines, integrations. |
-| `03-business-rules.md` | rule catalog (rule → `path:line`), invariants, authz/compliance, traceability. |
-| `04-system-context-and-gaps.md` | system-of-systems map, contracts exposed/consumed, boundaries, risks, to-verify. |
+| Write or Edit inside a `.ckb-output` directory | allowed |
+| Write or Edit anywhere else, including the analysed repo, the session's work tree, `..` paths, and symlinks that escape the KB directory | **blocked** |
+| Read, Grep, Glob, and read-only shell (`git status`, `git log`, `ls`, `cat`, `find`, `jq`, …) | allowed |
+| Redirection to files, `rm`, `mv`, `cp`, `tee`, `sed -i`, installers, builds, `git commit/push/reset/…`, pipe-to-shell | **blocked** |
+| The plugin's own scripts, matched by resolved real path (look-alikes are blocked) | allowed |
+| Any tool not on the known read-only list, including MCP tools | **blocked** |
 
-Every claim cites `path:line`; each doc carries a legend `[C]` confirmed · `[I]` inferred · `[?]` unknown. Micro + macro views.
+**Repo-URL mode contract.** Remote repos are shallow-cloned (`--depth 1`, no tags, hooks disabled, LFS smudge off) into a private sandbox (`$CKB_CLONE_BASE`, default `$TMPDIR/ckb-clones`). The clone's push URL is disabled and the gate also blocks `git push`, so **nothing is ever pushed to origin**. **No source is kept** beyond the short citations in the KB. **The clone is deleted when the job ends**, including after a failure, and the deletion is verified. URLs with embedded credentials (`https://user:token@…`) are refused; use your git credential helper or SSH. Credentials are also stripped from any URL recorded in `ckb.json`.
 
----
+> Deletion is `rm -rf` followed by an existence check. On SSDs and APFS, overwriting blocks can't guarantee erasure, so the plugin doesn't pretend to. For sensitive code, use full-disk encryption (FileVault).
 
-## Package layout (one folder, files at the same level)
+In headless URL mode, grant the sandbox so the analysis can read it: `CKB_CLONE_BASE=$HOME/.cache/ckb-clones claude -p "/kb <url>" --add-dir $HOME/.cache/ckb-clones --add-dir <kb-dir>`. Both directories must exist before launch.
 
+## The machine artifact (`ckb.json`)
+
+`ckb.json` conforms to **CKB v0.1**, an open, versioned spec. The schema and semantic rules are vendored in [`spec/v0.1/`](spec/v0.1/) and pinned to a ckb-spec commit in `spec/v0.1/SOURCE`. The plugin reads nothing outside its own directory.
+
+> CKB v0.1 is a **draft**: it may change incompatibly before 1.0. Every artifact declares `"ckb_version": "0.1"`.
+
+The model writes a draft, and `scripts/finalize.sh` makes it trustworthy:
+
+- **Stable IDs** are derived from normalized join keys (`interface:http:provides:GET:/users/{id}`, `dependency:npm:@org/pkg`, `datastore:postgres:public.orders`). Re-running on the same commit yields the same IDs, and the artifact differs only in `generated_at`.
+- **Normalization:** `/users/:id`, `/users/[id]`, `/users/<int:id>` and `/users/${id}` all become `/users/{id}`. npm and pypi names are canonicalized (PEP 503 for pypi).
+- **Integrity:** duplicate entities are merged with their provenance unioned. References are resolved, and dangling or malformed references are dropped with a warning. Any claim without a valid citation is **downgraded to `unknown`**.
+- **Validation:** the artifact is checked against the JSON Schema and semantic rules R1–R6 (unique IDs, prefixes, resolvable references, confidence counts, step order, line ranges). The result is recorded in `manifest.json` with `status` `complete`, `incomplete` or `invalid`.
+
+## Other commands
+
+| Command | What it does |
+|---|---|
+| `/map` | Three-altitude reconnaissance: strategy, architecture, execution |
+| `/hunt [theme]` | Finds initiatives and ranks them by Leverage = (Value × Durability × Confidence) / Effort |
+| `/plan <initiative>` | A five-step change plan and a unified diff as text. Nothing is applied |
+
+All three are read-only and arm the gate like `/kb`.
+
+## Local development
+
+```bash
+git clone https://github.com/riddhimohansharma/codebase-kb-engine && cd codebase-kb-engine
+tests/guard.test.sh       # 66 safety checks (gate, resolver, clone sandbox)
+tests/finalize.test.sh    # conformance: normalization, IDs, determinism, validation, manifest
+claude plugin validate .  # manifest checks
+tools/sync-spec.sh --check # vendored spec matches ckb-spec (pin in spec/v0.1/SOURCE)
+claude --plugin-dir .     # load without installing
 ```
-repository-kb-engine/
-├── bootstrap.sh          one-shot setup
-├── repokb                the CLI
-├── run.sh                legacy interactive launcher
-├── README.md
-├── .claude-plugin/       plugin.json, marketplace.json
-├── commands/             kb, map, hunt, plan
-├── agents/               scout, auditor
-├── skills/               kb, doctrine, leverage
-└── hooks/                hooks.json, guard.sh   (fail-closed read-only gate)
-```
 
-The zip contains exactly this one folder. A stray `files.zip` or a second copy is not part
-of the package — delete extras. Everything resolves relative to this folder; no hardcoded paths.
+Optional wrapper (sets `CKB_ENFORCE=always` for the whole session): `bash bootstrap.sh`, then `repokb doctor`, `repokb kb ~/code/app`, or `repokb run ~/code/app`.
 
----
+Security issues: see [SECURITY.md](SECURITY.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Enforcement model
+**Known limits:** the gate parses shell text, so it's a strong guard, not a sandbox; for untrusted code, also use Claude Code's sandbox mode. Paths containing spaces in the plugin's install location will fail closed (blocked), not open.
 
-`hooks/guard.sh` runs on every `PreToolUse` (main agent + subagents):
-- **Write/Edit/MultiEdit:** only inside `KB_DIR` (no `..`); anything else blocked. `NotebookEdit` blocked.
-- **Deletes:** blocked everywhere.
-- **Reads allowed:** `Read`, `Grep`, `Glob`, `WebFetch`, `WebSearch`, `Task`, `TodoWrite`, `BashOutput`.
-- **Bash default-deny:** only read-only heads (`ls`, `cat`, `grep`, `rg`, `find`, `git` read-subcommands,
-  `jq`, `awk`/`sed` without `-i`, …); blocks redirections (except `/dev`), in-place edits, destructive
-  coreutils, package/build/deploy tools, pipe-to-shell, `$(...)`/loop bypasses.
-- **Fails closed** on unparseable input or unknown tool/command — even without `jq`.
+## License
 
-Boundary: a policy layer, not an OS sandbox. Keep interpreters (`python`/`node`/`ruby`/`perl`) off
-the Bash allowlist for a hard guarantee.
-
-## Troubleshooting
-
-- `fish: Unknown command: repokb` → PATH not set: `bash bootstrap.sh` again, open a new terminal, or call by full path.
-- `exists but is not an executable file` → `chmod +x <folder>/repokb <folder>/hooks/guard.sh`; or just `repokb doctor` self-heals the hook.
-- `MISSING: …` in `doctor` → `repokb` isn't beside its components; you unzipped into a same-named folder (double-nested). Re-run `bootstrap.sh` (it auto-corrects) or point at the inner folder.
-
-## Requirements
-Claude Code · `jq` · macOS/Linux (`bash`; BSD-safe tools).
+[MIT](LICENSE) © 2026 Riddhi Mohan Sharma

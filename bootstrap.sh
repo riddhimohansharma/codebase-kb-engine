@@ -7,11 +7,11 @@ set -eu
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # if unzipped one level too deep, drop into the real engine folder automatically
-if [ ! -e "$DIR/.claude-plugin/plugin.json" ] && [ -e "$DIR/repository-kb-engine/.claude-plugin/plugin.json" ]; then
-  DIR="$DIR/repository-kb-engine"
-fi
+for sub in codebase-kb-engine repository-kb-engine; do
+  if [ ! -e "$DIR/.claude-plugin/plugin.json" ] && [ -e "$DIR/$sub/.claude-plugin/plugin.json" ]; then DIR="$DIR/$sub"; fi
+done
 
-chmod +x "$DIR/repokb" "$DIR/run.sh" "$DIR/hooks/guard.sh" 2>/dev/null || true
+chmod +x "$DIR/repokb" "$DIR/run.sh" "$DIR"/hooks/*.sh "$DIR"/scripts/*.sh 2>/dev/null || true
 echo "engine : $DIR"
 echo
 "$DIR/repokb" doctor || true

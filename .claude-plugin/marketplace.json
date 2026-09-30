@@ -1,11 +1,31 @@
 {
-  "name": "repository-kb-engine-local",
-  "owner": { "name": "risharma" },
+  "name": "codebase-kb-engine",
+  "owner": {
+    "name": "Riddhi Mohan Sharma",
+    "url": "https://github.com/riddhimohansharma"
+  },
+  "description": "Codebase KB Engine: read-only repository knowledge bases in the open CKB format.",
   "plugins": [
     {
-      "name": "repository-kb-engine",
+      "name": "codebase-kb-engine",
       "source": "./",
-      "description": "Read-only strategic-analysis engine for any repo. Fully local."
+      "description": "Read-only codebase knowledge base: 5 docs + a CKB v0.1 ckb.json with provenance and confidence.",
+      "displayName": "Codebase KB Engine",
+      "version": "0.5.0",
+      "category": "development",
+      "tags": [
+        "codebase",
+        "documentation",
+        "architecture",
+        "knowledge-base",
+        "ckb",
+        "read-only"
+      ],
+      "author": {
+        "name": "Riddhi Mohan Sharma"
+      },
+      "homepage": "https://github.com/riddhimohansharma/codebase-kb-engine",
+      "license": "MIT"
     }
   ]
 }

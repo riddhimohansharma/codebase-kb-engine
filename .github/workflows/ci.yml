@@ -1,0 +1,32 @@
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: { os: [ubuntu-latest, macos-latest] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Tools
+        run: |
+          command -v jq || { sudo apt-get update && sudo apt-get install -y jq; }
+          npm install -g @anthropic-ai/claude-code
+      - name: Manifests (strict)
+        run: |
+          claude plugin validate . --strict
+          claude plugin validate .claude-plugin/plugin.json --strict
+      - name: Versions agree
+        run: |
+          p=$(jq -r .version .claude-plugin/plugin.json); m=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
+          [ "$p" = "$m" ] || { echo "plugin.json $p != marketplace.json $m"; exit 1; }
+          grep -q "^## \[$p\]" CHANGELOG.md || { echo "CHANGELOG has no entry for $p"; exit 1; }
+      - name: Safety (guard, resolver, clone sandbox)
+        run: tests/guard.test.sh
+      - name: Conformance (finalize, normalize, validate)
+        run: tests/finalize.test.sh

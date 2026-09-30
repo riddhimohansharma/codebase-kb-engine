@@ -1,0 +1,196 @@
+{
+  "entities": {
+    "components": [
+      {
+        "id": "c1",
+        "name": "api",
+        "module_id": "./src/api/",
+        "kind": "service",
+        "confidence": "confirmed",
+        "provenance": [
+          {
+            "path": "./src/api/index.ts",
+            "line": 1
+          }
+        ],
+        "colour": "red"
+      }
+    ],
+    "interfaces": [
+      {
+        "id": "i1",
+        "name": "get user",
+        "kind": "http",
+        "role": "provides",
+        "http": {
+          "method": "get",
+          "normalized_path": "/users/:userId/"
+        },
+        "confidence": "confirmed",
+        "provenance": [
+          {
+            "path": "src/api/users.ts",
+            "line": 10
+          }
+        ]
+      },
+      {
+        "id": "i1b",
+        "name": "get user dup",
+        "kind": "http",
+        "role": "provides",
+        "http": {
+          "method": "GET",
+          "path": "/users/[userId]?x=1"
+        },
+        "confidence": "inferred",
+        "provenance": [
+          {
+            "path": "src/app/users/[userId]/route.ts",
+            "line": 3
+          }
+        ]
+      },
+      {
+        "id": "i2",
+        "name": "flask",
+        "kind": "http",
+        "role": "provides",
+        "http": {
+          "method": "POST",
+          "normalized_path": "/orders/<int:order_id>/items"
+        },
+        "confidence": "high",
+        "provenance": [
+          {
+            "path": "app.py",
+            "line": 5
+          }
+        ]
+      },
+      {
+        "id": "i3",
+        "name": "catch",
+        "kind": "http",
+        "role": "provides",
+        "http": {
+          "method": "GET",
+          "normalized_path": "/docs/[...slug]"
+        },
+        "confidence": "confirmed",
+        "provenance": [
+          {
+            "path": "/etc/passwd",
+            "line": 1
+          }
+        ]
+      }
+    ],
+    "dependencies": [
+      {
+        "id": "d1",
+        "name": "Django",
+        "package_key": "pypi:Django_REST.framework",
+        "scope": "runtime",
+        "confidence": "confirmed",
+        "provenance": [
+          {
+            "path": "requirements.txt",
+            "line": 2
+          }
+        ]
+      }
+    ],
+    "datastores": [
+      {
+        "id": "s1",
+        "name": "users",
+        "engine": "Postgres",
+        "schema": "public",
+        "table": "users",
+        "access": "read",
+        "confidence": "inferred",
+        "provenance": [
+          {
+            "path": "db.ts",
+            "line": 4,
+            "end_line": 2
+          }
+        ]
+      }
+    ],
+    "business_rules": [
+      {
+        "id": "r1",
+        "name": "Admin only!",
+        "statement": "only admins delete",
+        "applies_to": [
+          "i1b",
+          "c1"
+        ],
+        "confidence": "confirmed",
+        "provenance": [
+          {
+            "path": "src/api/users.ts",
+            "line": 40
+          }
+        ]
+      },
+      {
+        "id": "r2",
+        "name": "admin only",
+        "statement": "second rule same slug",
+        "confidence": "inferred",
+        "provenance": [
+          {
+            "path": "src/b.ts",
+            "line": 2
+          }
+        ]
+      }
+    ],
+    "workflows": [
+      {
+        "id": "w1",
+        "name": "Signup",
+        "steps": [
+          {
+            "order": 5,
+            "description": "write",
+            "entity_id": "s1"
+          },
+          {
+            "order": 2,
+            "description": "call",
+            "entity_id": "i1"
+          }
+        ],
+        "confidence": "confirmed",
+        "provenance": [
+          {
+            "path": "src/signup.ts",
+            "line": 1
+          }
+        ]
+      }
+    ]
+  },
+  "relations": [
+    {
+      "from": "c1",
+      "to": "s1",
+      "kind": "reads",
+      "confidence": "confirmed",
+      "provenance": [
+        {
+          "path": "db.ts",
+          "line": 4
+        }
+      ]
+    },
+    {
+      "from": "c1",
+      "kind": "calls"
+    }
+  ]
+}
