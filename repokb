@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# repokb — repository-kb-engine, one command. User- and AI-friendly.
+# Self-locating (symlink/PATH safe). Read-only toward code; writes only a KB under KB_DIR.
+set -euo pipefail
+
+# ---- resolve the engine directory, following symlinks (BSD/macOS safe) ----
+src="${BASH_SOURCE[0]}"
+while [ -h "$src" ]; do
+  d="$(cd -P "$(dirname "$src")" >/dev/null 2>&1 && pwd)"
+  src="$(readlink "$src")"; case "$src" in /*) ;; *) src="$d/$src" ;; esac
+done
+ENGINE="$(cd -P "$(dirname "$src")" >/dev/null 2>&1 && pwd)"
+VERSION="0.4.1"
+
+# self-heal: the read-only gate must be executable or it won't fire
+if [ -e "$ENGINE/hooks/guard.sh" ] && [ ! -x "$ENGINE/hooks/guard.sh" ]; then
+  chmod +x "$ENGINE/hooks/guard.sh" 2>/dev/null || true
+fi
+
+JSON=0; DRY=0; KB_OVERRIDE="${KB_DIR:-}"
+say(){ printf '%s\n' "$*" >&2; }
+die(){ printf 'repokb: %s\n' "$1" >&2; exit "${2:-1}"; }
+
+usage(){ cat >&2 <<'HELPDOC'
+repokb — read-only repo analysis + knowledge base (one command)
+
+USAGE
+  repokb <command> [global-opts] [args]
+
+COMMANDS
+  kb    <repo> [focus]   Generate the full knowledge base (headless) into KB_DIR
+  map   <repo>           Tri-lens recon (headless, prints result)
+  hunt  <repo> [theme]   Leverage-ranked initiatives (headless)
+  plan  <repo> <what>    Five-step plan + patch as text (headless)
+  run   <repo> [--...]   Open an interactive session on the repo (human)
+  doctor                 Check environment + engine integrity
+  install [dir]          Symlink 'repokb' onto PATH (default /usr/local/bin or ~/.local/bin)
+  help | version
+
+GLOBAL OPTIONS
+  --json         Machine-readable output (--output-format json) for headless commands
+  --dry-run      Print the claude command instead of running it
+  --kb-dir DIR   KB output dir (else $KB_DIR, else <repo>-kb sibling)
+
+ENV  KB_DIR · REPOKB_MODEL (model) · REPOKB_MAX_TURNS
+SAFETY  a fail-closed hook keeps the repo read-only; writes go only to KB_DIR.
+
+EXAMPLES
+  repokb doctor
+  repokb run  ~/code/myapp                 # interactive
+  repokb kb   ~/code/myapp                  # KB -> ~/code/myapp-kb
+  repokb kb   ~/code/myapp billing --json   # focused, JSON output
+  repokb kb   ~/code/myapp --dry-run        # preview the exact command
+HELPDOC
+}
+
+# ---- parse global options from anywhere on the line ----
+args=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --json) JSON=1 ;;
+    --dry-run) DRY=1 ;;
+    --kb-dir) KB_OVERRIDE="${2:?--kb-dir needs a value}"; shift ;;
+    --kb-dir=*) KB_OVERRIDE="${1#*=}" ;;
+    *) args+=("$1") ;;
+  esac; shift
+done
+if [ "${#args[@]}" -gt 0 ]; then set -- "${args[@]}"; else set --; fi
+cmd="${1:-help}"; [ $# -gt 0 ] && shift || true
+
+need_claude(){ command -v claude >/dev/null 2>&1 || die "claude not found in PATH"; }
+resolve_repo(){ [ -n "${1:-}" ] || die "missing <repo> path"; [ -d "$1" ] || die "not a directory: $1"; (cd "$1" && pwd); }
+resolve_kb(){ local kb="${KB_OVERRIDE:-$(dirname "$1")/$(basename "$1")-kb}"; mkdir -p "$kb"; (cd "$kb" && pwd); }
+
+# headless: $1 = prompt, $2 = addkb(0/1). Uses globals REPO, KB.
+headless(){
+  local prompt="$1" addkb="${2:-0}"
+  local flags=( -p "$prompt" --plugin-dir "$ENGINE" --permission-mode acceptEdits
+    --allowedTools "Read,Grep,Glob,Bash,BashOutput,Write,Edit,MultiEdit,Task,TodoWrite,WebFetch,WebSearch" )
+  [ "$addkb" = 1 ] && flags+=( --add-dir "$KB" )
+  [ -n "${REPOKB_MODEL:-}" ]     && flags+=( --model "$REPOKB_MODEL" )
+  [ -n "${REPOKB_MAX_TURNS:-}" ] && flags+=( --max-turns "$REPOKB_MAX_TURNS" )
+  [ "$JSON" = 1 ]             && flags+=( --output-format json )
+  if [ "$DRY" = 1 ]; then
+    printf '( cd %q && claude' "$REPO"; printf ' %q' "${flags[@]}"; printf ' )\n'; return 0
+  fi
+  need_claude
+  ( cd "$REPO" && claude "${flags[@]}" )
+}
+
+trailer(){ # $1 = rc ; prints a machine-readable status line unless JSON/DRY
+  [ "$JSON" = 1 ] && return 0; [ "$DRY" = 1 ] && return 0
+  local st; [ "$1" = 0 ] && st=OK || st=FAIL
+  if [ "${KB:-}" != "" ] && [ "${2:-}" = kb ]; then
+    local n; n=$(ls -1 "$KB"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    printf 'STATUS=%s KB_DIR=%s FILES=%s\n' "$st" "$KB" "$n"
+  else
+    printf 'STATUS=%s\n' "$st"
+  fi
+}
+
+case "$cmd" in
+  kb)
+    REPO="$(resolve_repo "${1:-}")"; shift || true
+    KB="$(resolve_kb "$REPO")"; export KB_DIR="$KB"
+    say "repo   : $REPO   (read-only)"; say "KB_DIR : $KB   (writable — KB output only)"
+    rc=0; headless "/kb ${*:-}" 1 || rc=$?
+    trailer "$rc" kb; exit "$rc" ;;
+
+  map)
+    REPO="$(resolve_repo "${1:-}")"
+    rc=0; headless "/map" 0 || rc=$?; trailer "$rc"; exit "$rc" ;;
+
+  hunt)
+    REPO="$(resolve_repo "${1:-}")"; shift || true
+    rc=0; headless "/hunt ${*:-}" 0 || rc=$?; trailer "$rc"; exit "$rc" ;;
+
+  plan)
+    REPO="$(resolve_repo "${1:-}")"; shift || true
+    [ -n "${*:-}" ] || die "plan needs a <what> argument"
+    rc=0; headless "/plan ${*}" 0 || rc=$?; trailer "$rc"; exit "$rc" ;;
+
+  run)
+    REPO="$(resolve_repo "${1:-}")"; shift || true
+    KB="$(resolve_kb "$REPO")"; need_claude
+    say "engine : $ENGINE"; say "repo   : $REPO   (read-only)"; say "KB_DIR : $KB   (writable — KB output only)"
+    export KB_DIR="$KB"
+    ( cd "$REPO" && exec claude --plugin-dir "$ENGINE" --add-dir "$KB" "$@" ) ;;
+
+  doctor)
+    ok=1
+    if command -v claude >/dev/null 2>&1; then say "claude : $(claude --version 2>/dev/null | head -1)"; else say "claude : MISSING"; ok=0; fi
+    if command -v jq >/dev/null 2>&1; then say "jq     : $(jq --version 2>/dev/null)"; else say "jq     : MISSING (gate still fails closed)"; fi
+    for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json hooks/guard.sh commands/kb.md commands/map.md commands/hunt.md commands/plan.md skills/kb/SKILL.md; do
+      if [ -e "$ENGINE/$f" ]; then say "ok     : $f"; else say "MISSING: $f"; ok=0; fi
+    done
+    [ -x "$ENGINE/hooks/guard.sh" ] || say "warn   : hooks/guard.sh not executable (chmod +x)"
+    st=OK; [ "$ok" = 1 ] || st=DEGRADED
+    printf 'STATUS=%s ENGINE=%s VERSION=%s\n' "$st" "$ENGINE" "$VERSION"
+    [ "$ok" = 1 ] ;;
+
+  install)
+    dir="${1:-$HOME/.local/bin}"
+    mkdir -p "$dir"
+    chmod +x "$ENGINE/repokb" "$ENGINE/run.sh" "$ENGINE/hooks/guard.sh" 2>/dev/null || true
+    ln -sf "$ENGINE/repokb" "$dir/repokb"
+    say "linked : $dir/repokb -> $ENGINE/repokb"
+    sh_name="$(basename "${SHELL:-sh}")"
+    case "$sh_name" in
+      fish)
+        if command -v fish >/dev/null 2>&1; then fish -c "fish_add_path $dir" >/dev/null 2>&1 && say "PATH   : added $dir (fish)"; else say "PATH   : run  fish_add_path $dir"; fi ;;
+      zsh)
+        grep -qs -- "$dir" "$HOME/.zshrc" 2>/dev/null || printf 'export PATH="%s:$PATH"\n' "$dir" >> "$HOME/.zshrc"
+        say "PATH   : ensured in ~/.zshrc" ;;
+      bash)
+        grep -qs -- "$dir" "$HOME/.bashrc" 2>/dev/null || printf 'export PATH="%s:$PATH"\n' "$dir" >> "$HOME/.bashrc"
+        say "PATH   : ensured in ~/.bashrc" ;;
+      *) say "PATH   : add $dir to your PATH" ;;
+    esac
+    printf 'STATUS=OK BIN=%s/repokb  (open a NEW terminal, then: repokb doctor)\n' "$dir" ;;
+
+  version) echo "repokb $VERSION (engine: $ENGINE)" ;;
+  help|-h|--help) usage ;;
+  *) die "unknown command: $cmd (try: repokb help)" ;;
+esac

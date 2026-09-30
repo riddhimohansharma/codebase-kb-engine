@@ -1,0 +1,13 @@
+{
+  "description": "Read-only enforcement gate: blocks all writes, deletes, installs, builds.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh" }
+        ]
+      }
+    ]
+  }
+}

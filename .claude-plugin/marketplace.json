@@ -1,0 +1,11 @@
+{
+  "name": "repository-kb-engine-local",
+  "owner": { "name": "risharma" },
+  "plugins": [
+    {
+      "name": "repository-kb-engine",
+      "source": "./",
+      "description": "Read-only strategic-analysis engine for any repo. Fully local."
+    }
+  ]
+}

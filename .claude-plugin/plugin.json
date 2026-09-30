@@ -1,0 +1,10 @@
+{
+  "name": "repository-kb-engine",
+  "description": "Read-only repo-analysis engine: tri-lens recon, leverage-scored initiative hunting, read-only planning, and full knowledge-base generation (solution architecture + technical/functional/business workflows + extracted business rules, micro and macro). A fail-closed PreToolUse gate keeps the code repo read-only and permits writes only under KB_DIR. Point it at any repo.",
+  "version": "0.4.1",
+  "author": {
+    "name": "risharma",
+    "url": "https://github.com/risharma"
+  },
+  "license": "MIT"
+}
