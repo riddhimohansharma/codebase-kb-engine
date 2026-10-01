@@ -1,7 +1,7 @@
 # Changelog
 
 ## [0.8.0] — 2026-10-01
-- License changed to PolyForm Shield 1.0.0; contributions require the CLA.
+- License changed to PolyForm Shield 1.0.0.
 - Emits CKB v0.2: purl dependencies, artifacts, services, config keys, external services, API specs.
 - Polyglot inventory and a coverage gate; parallel scouts; claim audit; self-improving feedback loop.
 - Eight docs plus a generated reference; doc lint, parity check and front-matter.

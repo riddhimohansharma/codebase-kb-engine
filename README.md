@@ -164,6 +164,6 @@ Security issues: see [SECURITY.md](SECURITY.md). Contributing: [CONTRIBUTING.md]
 
 - **Free to use** for everyone, including commercial and internal use at your company. You may modify it for your own use, and share it.
 - **Not allowed:** using this software to provide a product that **competes** with it or with the author's products built on it (CKB producers, consumers, code-knowledge graphs).
-- **Contributions** are welcome as pull requests and require the [CLA](CLA.md).
+- **Contributions are not accepted** (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 - Earlier commits, up to and including `8b952d1` (and releases 0.7.0 and earlier), were published under MIT, and those exact commits remain MIT.
 - The vendored spec in `spec/` is CC BY-ND 4.0. "CKB" is a trademark; see [NOTICE](NOTICE).
