@@ -11,7 +11,7 @@
       "source": "./",
       "description": "Read-only codebase knowledge base: 5 docs + a CKB v0.1 ckb.json with provenance and confidence.",
       "displayName": "Codebase KB Engine",
-      "version": "0.6.1",
+      "version": "0.7.0",
       "category": "development",
       "tags": [
         "codebase",

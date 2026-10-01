@@ -1,8 +1,8 @@
 # Codebase KB Engine
 
-A Claude Code plugin that generates a **verifiable knowledge base inside any repository**, at `<repo>/.ckb/`, ready to commit alongside the code. Generation is read-only: the plugin writes only to `.ckb/` and never edits source or commits.
+A Claude Code plugin that generates a **verifiable knowledge base inside any repository**, at `<repo>/ckb/`, ready to commit alongside the code. Generation is read-only: the plugin writes only to `ckb/` and never edits source or commits.
 
-Each run produces, in `.ckb/`:
+Each run produces, in `ckb/`:
 
 | File | For | Contents |
 |---|---|---|
@@ -44,25 +44,25 @@ From a terminal: `claude plugin marketplace add riddhimohansharma/codebase-kb-en
 Headless:
 
 ```bash
-claude -p "/codebase-kb-engine:kb" --output-format json      # .ckb/ is inside the repo: no --add-dir needed
+claude -p "/codebase-kb-engine:kb" --output-format json      # ckb/ is inside the repo: no --add-dir needed
 ```
 
 The JSON output includes token usage. `manifest.json` records `token_usage: null` because a session can't observe its own usage.
 
-### Where output goes: `.ckb/`, committed with the code
+### Where output goes: `ckb/`, committed with the code
 
-The KB lives at **`<repo-root>/.ckb/`**, the canonical location in the [CKB spec](https://github.com/riddhimohansharma/codebase-kb-spec), so every repo's knowledge base is found the same way:
+The KB lives at **`<repo-root>/ckb/`**, the canonical location in the [CKB spec](https://github.com/riddhimohansharma/codebase-kb-spec), so every repo's knowledge base is found the same way:
 
 ```bash
-/kb                                         # writes .ckb/, prints the commit command
-git add .ckb && git commit -m "docs(ckb): knowledge base for <sha>"    # you (or CI) commit; the plugin never does
+/kb                                         # writes ckb/, prints the commit command
+git add ckb && git commit -m "docs(ckb): knowledge base for <sha>"    # you (or CI) commit; the plugin never does
 ```
 
-- **Freshness.** `ckb.json` records the analysed source commit. The KB is **fresh** while nothing outside `.ckb/` has changed since then, so committing `.ckb/` itself never makes it stale. `/kb` checks this first and **skips regeneration when the KB is fresh**; use `/kb --force` to regenerate anyway. `/kb-validate` reports freshness too.
-- **No self-contamination.** Analysis ignores `.ckb/`, and any citation that points into it is dropped (spec rule R7).
-- **Uncommitted changes** outside `.ckb/` are allowed but flagged: the manifest records `dirty_worktree: true`. Commit source first for an exact match.
+- **Freshness.** `ckb.json` records the analysed source commit. The KB is **fresh** while nothing outside `ckb/` has changed since then, so committing `ckb/` itself never makes it stale. `/kb` checks this first and **skips regeneration when the KB is fresh**; use `/kb --force` to regenerate anyway. `/kb-validate` reports freshness too.
+- **No self-contamination.** Analysis ignores `ckb/`, and any citation that points into it is dropped (spec rule R7).
+- **Uncommitted changes** outside `ckb/` are allowed but flagged: the manifest records `dirty_worktree: true`. Commit source first for an exact match.
 - **URL mode** (`/kb <url>`) analyses a repo you're not working in. Output goes to `$KB_DIR`, or `<name>-ckb/` next to your current work tree, using the same layout. It is never committed, because the clone is deleted.
-- An existing, non-empty `.ckb/` without the `.ckb-output` marker is never overwritten, and a symlinked `.ckb` is refused.
+- An existing, non-empty `ckb/` without the `.ckb-output` marker is never overwritten, and a symlinked `ckb` is refused.
 
 ## Safety model
 
@@ -74,9 +74,9 @@ git add .ckb && git commit -m "docs(ckb): knowledge base for <sha>"    # you (or
 
 | Action | Result |
 |---|---|
-| Write or Edit inside `<repo>/.ckb/` (exactly that directory, at the work-tree root, carrying the `.ckb-output` marker) | allowed |
+| Write or Edit inside `<repo>/ckb/` (exactly that directory, at the work-tree root, carrying the `.ckb-output` marker) | allowed |
 | Write or Edit in the URL-mode output dir (outside any work tree, carrying the marker) | allowed |
-| Write or Edit anywhere else in the repo, including source, config, `.gitattributes`, a nested `src/.ckb/`, look-alikes such as `.ckb-evil/`, `..` paths, and symlinks out of `.ckb/` | **blocked** |
+| Write or Edit anywhere else in the repo, including source, config, `.gitattributes`, a nested `src/ckb/`, look-alikes such as `.ckb-evil/`, `..` paths, and symlinks out of `ckb/` | **blocked** |
 | Read, Grep, Glob, and read-only shell (`git status`, `git log`, `ls`, `cat`, `find`, `jq`, …) | allowed |
 | Redirection to files, `rm`, `mv`, `cp`, `tee`, `sed -i`, installers, builds, `git commit/push/reset/…`, pipe-to-shell | **blocked** |
 | The plugin's own scripts, matched by resolved real path (look-alikes are blocked) | allowed |
@@ -115,14 +115,14 @@ All three are read-only and arm the gate like `/kb`.
 
 ```bash
 git clone https://github.com/riddhimohansharma/codebase-kb-engine && cd codebase-kb-engine
-tests/guard.test.sh       # 81 safety checks (gate, resolver, clone sandbox)
-tests/finalize.test.sh    # 51 conformance checks: normalization, IDs, determinism, freshness, R7, manifest
+tests/guard.test.sh       # 86 safety checks (gate, resolver, clone sandbox)
+tests/finalize.test.sh    # 53 conformance checks: normalization, IDs, determinism, freshness, R7, manifest
 claude plugin validate .  # manifest checks
 tools/sync-spec.sh --check # vendored spec matches codebase-kb-spec (pin in spec/v0.1/SOURCE)
 claude --plugin-dir .     # load without installing
 ```
 
-Optional wrapper (sets `CKB_ENFORCE=always` for the whole session): `bash bootstrap.sh`, then `repokb doctor`, `repokb kb ~/code/app`, or `repokb run ~/code/app`. Output always goes to `~/code/app/.ckb/`; the wrapper's `--kb-dir` applies only to URL mode.
+Optional wrapper (sets `CKB_ENFORCE=always` for the whole session): `bash bootstrap.sh`, then `repokb doctor`, `repokb kb ~/code/app`, or `repokb run ~/code/app`. Output always goes to `~/code/app/ckb/`; the wrapper's `--kb-dir` applies only to URL mode.
 
 Security issues: see [SECURITY.md](SECURITY.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 

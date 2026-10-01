@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/riddhimohansharma/codebase-kb-spec/schema/v0.1/ckb.schema.json",
   "title": "Codebase Knowledge Base (CKB) artifact",
-  "description": "DRAFT v0.1 — unstable. Breaking changes may occur without notice until 1.0. One artifact describes one repository at one commit. Canonical location: <repo-root>/.ckb/ckb.json.",
+  "description": "DRAFT v0.1 — unstable. Breaking changes may occur without notice until 1.0. One artifact describes one repository at one commit. Canonical location: <repo-root>/ckb/ckb.json.",
   "type": "object",
   "required": ["ckb_version", "repo", "confidence_summary", "entities"],
   "additionalProperties": false,
@@ -60,7 +60,7 @@
       }
     },
     "repo_path": {
-      "description": "Repo-relative POSIX path. No leading slash, no '..' segments. Must not point into the .ckb/ directory (rule R7).",
+      "description": "Repo-relative POSIX path. No leading slash, no '..' segments. Must not point into the ckb/ directory (rule R7).",
       "type": "string",
       "minLength": 1,
       "pattern": "^[^/]",

@@ -2,6 +2,18 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/). The plugin `name` `codebase-kb-engine` is permanent.
 
+## [0.7.0] — 2026-09-30
+
+### Changed
+- **The KB folder is now `<repo>/ckb/`, visible in Finder, Explorer and `ls`.** It was the hidden `.ckb/`. This follows codebase-kb-spec, which moved the canonical location. Everything that referred to the folder is updated: the guard's write rule, freshness pathspec, R7 filtering, docs and tests.
+
+### Added
+- **Automatic migration:** on the next `/kb`, an existing plugin-made `.ckb/` (carrying the marker) is renamed to `ckb/`. A `.ckb/` without the marker is left alone, and an existing `ckb/` is never overwritten. If `.ckb/` was committed, commit the rename: `git add -A .ckb ckb`.
+- `ckb/.gitignore` keeps transient files (draft, candidate, rejected, tmp) and OS junk out of commits.
+
+### Fixed
+- OS junk files (`.DS_Store`, `Thumbs.db`, `desktop.ini`) created by Finder or Explorer no longer count as uncommitted source changes. Previously, just opening the repo in Finder made the KB look stale.
+
 ## [0.6.1] — 2026-09-30
 
 ### Changed

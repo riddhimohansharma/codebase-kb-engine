@@ -43,25 +43,29 @@ ids1="$(q '[.. | .id? // empty] | join(",")')"
 run; ids2="$(jq -r '[.. | .id? // empty] | join(",")' "$A")"
 ok "determinism: re-run on same commit -> identical IDs" '[ "$ids1" = "$ids2" ]'
 ok "determinism: artifact identical except generated_at" '[ "$(jq -c "del(.repo.generated_at)" "$A" | shasum)" = "$(cp "$A" "$T/a1"; run; jq -c "del(.repo.generated_at)" "$A" | shasum)" ]'
-ok "KB is <repo>/.ckb (in-repo standard)"       '[ "$KB" = "$REPO/.ckb" ]'
+ok "KB is <repo>/ckb (in-repo standard)"       '[ "$KB" = "$REPO/ckb" ]'
 ok "README.md index + .gitattributes written"   '[ -s "$KB/README.md" ] && grep -qx "\* linguist-generated=true" "$KB/.gitattributes"'
 ok "README index is deterministic (no timestamps)" '! grep -qE "[0-9]{4}-[0-9]{2}-[0-9]{2}T" "$KB/README.md"'
-ok "writing .ckb does not mark worktree dirty"  '[ "$(jq -r .repo.dirty_worktree "$M")" = false ]'
-ok "commit hint printed, producer did not commit" 'grep -q "^COMMIT_HINT=git add .ckb" "$T/out" && [ "$(git -C "$REPO" rev-list --count HEAD)" = 2 ]'
+ok "writing ckb does not mark worktree dirty"  '[ "$(jq -r .repo.dirty_worktree "$M")" = false ]'
+ok "commit hint printed, producer did not commit" 'grep -q "^COMMIT_HINT=git add ckb" "$T/out" && [ "$(git -C "$REPO" rev-list --count HEAD)" = 2 ]'
+ok "ckb/.gitignore keeps transient files out of commits" 'grep -qx "ckb.draft.json" "$KB/.gitignore" && grep -qx ".DS_Store" "$KB/.gitignore"'
 F="$ROOT/scripts/freshness.sh"
 ok "freshness: fresh right after generation"    '"$F" "$REPO" >/dev/null'
-git -C "$REPO" add .ckb && git -C "$REPO" -c user.email=t@t -c user.name=t commit -qm kb
-ok "freshness: committing .ckb keeps it fresh"  '"$F" "$REPO" | grep -q "FRESHNESS=fresh"'
+git -C "$REPO" add ckb && git -C "$REPO" -c user.email=t@t -c user.name=t commit -qm kb
+touch "$REPO/.DS_Store" "$REPO/ckb/.DS_Store"
+ok "OS junk (.DS_Store) does not make the KB stale" '"$F" "$REPO" | grep -q "FRESHNESS=fresh"'
+rm -f "$REPO/.DS_Store" "$REPO/ckb/.DS_Store"
+ok "freshness: committing ckb keeps it fresh"  '"$F" "$REPO" | grep -q "FRESHNESS=fresh"'
 echo y >> "$REPO/a.ts"; git -C "$REPO" -c user.email=t@t -c user.name=t commit -qam src
 ok "freshness: source change -> stale (exit 1)" '"$F" "$REPO" >"$T/f"; [ $? -eq 1 ] && grep -q "FRESHNESS=stale.*1-source-files-changed" "$T/f"'
 jq '.repo.commit_sha = "ffffffffffffffffffffffffffffffffffffffff"' "$A" > "$T/x" && cp "$A" "$T/a.bak" && mv "$T/x" "$A"
 ok "freshness: unknown commit -> unknown (exit 3)" '"$F" "$REPO" >/dev/null; [ $? -eq 3 ]'
 cp "$T/a.bak" "$A"
 ok "freshness: no artifact -> none (exit 4)"    '"$F" "$T" "$T/nokb" >/dev/null; [ $? -eq 4 ]'
-jq '.entities.components += [{"id":"kbc","name":"kb","module_id":".ckb","kind":"other","confidence":"confirmed","provenance":[{"path":".ckb/00-overview.md","line":1}]}] | .entities.dependencies[0].provenance = [{"path":".ckb/ckb.json","line":3}]' "$ROOT/tests/fixtures/messy-draft.json" > "$KB/ckb.draft.json"
+jq '.entities.components += [{"id":"kbc","name":"kb","module_id":"ckb","kind":"other","confidence":"confirmed","provenance":[{"path":"ckb/00-overview.md","line":1}]}] | .entities.dependencies[0].provenance = [{"path":"ckb/ckb.json","line":3}]' "$ROOT/tests/fixtures/messy-draft.json" > "$KB/ckb.draft.json"
 "$ROOT/scripts/finalize.sh" "$REPO" "$KB" >"$T/out" 2>&1
-ok "R7: .ckb component dropped"                 '[ "$(jq "[.entities.components[] | select(.module_id|startswith(\".ckb\"))] | length" "$A")" = 0 ]'
-ok "R7: .ckb citation dropped -> claim unknown" '[ "$(jq -r .entities.dependencies[0].confidence "$A")" = unknown ] && ! grep -q "\"path\": \".ckb" "$A"'
+ok "R7: ckb component dropped"                 '[ "$(jq "[.entities.components[] | select(.module_id|startswith(\"ckb\"))] | length" "$A")" = 0 ]'
+ok "R7: ckb citation dropped -> claim unknown" '[ "$(jq -r .entities.dependencies[0].confidence "$A")" = unknown ] && ! grep -q "\"path\": \"ckb" "$A"'
 ok "R7 artifact still validates"                '[ "$(jq -r .status "$M")" = complete ]'
 # invalid path: a plugin copy with an impossible schema requirement must never overwrite the good ckb.json
 run; good="$(shasum < "$A")"

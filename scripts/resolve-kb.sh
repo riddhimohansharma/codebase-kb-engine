@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # resolve-kb.sh — resolve, vet, and initialise the KB output directory.
 # Usage: resolve-kb.sh <target-dir> [--url-mode] [--name NAME] [--check]
-#   local mode (standard): KB = <repo-root>/.ckb   — committed with the code (CKB spec: canonical location)
+#   local mode (standard): KB = <repo-root>/ckb   — committed with the code (CKB spec: canonical location)
 #   url mode:              KB = $KB_DIR, else <cwd-root-parent or cwd>/<name>-ckb  (target is an ephemeral clone, never committed)
 #   --check: resolve and vet only; create nothing (dry runs, /kb-validate)
 # Prints KEY=VALUE lines. Exit: 0 ok · 2 usage · 3 not writable · 4 refused location · 5 dir exists, not a CKB dir
 # Creates the KB dir and its static `.ckb-output` marker; the read-only guard permits writes only inside a marked dir,
-# and inside a git work tree only at exactly <work-tree>/.ckb.
+# and inside a git work tree only at exactly <work-tree>/ckb.
 set -uo pipefail
 die(){ code="$1"; shift; printf '%s\n' "$@" >&2; exit "$code"; }
 
@@ -49,12 +49,17 @@ if [ "$url_mode" = 1 ]; then
   wt="$(git -C "$(dirname "$kb")" rev-parse --show-toplevel 2>/dev/null)" && \
     die 4 "REFUSED: '$kb' is inside the git work tree '$wt'. Set KB_DIR outside any repo for URL mode."
 else
-  [ -n "$root" ] || die 2 "REFUSED: '$target' is not inside a git work tree. The KB is committed at <repo-root>/.ckb, so a git repo is required."
+  [ -n "$root" ] || die 2 "REFUSED: '$target' is not inside a git work tree. The KB is committed at <repo-root>/ckb, so a git repo is required."
   [ -n "$name" ] || name="$(basename "$root")"
-  [ -n "${KB_DIR:-}" ] && echo "note: KB_DIR is ignored in local mode; the standard location is <repo-root>/.ckb" >&2
-  [ -L "$root/.ckb" ] && die 4 "REFUSED: '$root/.ckb' is a symlink. The KB must be a real directory in the repo."
-  [ -e "$root/.ckb" ] && [ ! -d "$root/.ckb" ] && die 4 "REFUSED: '$root/.ckb' exists and is not a directory."
-  kb="$root/.ckb"
+  [ -n "${KB_DIR:-}" ] && echo "note: KB_DIR is ignored in local mode; the standard location is <repo-root>/ckb" >&2
+  # migrate a legacy hidden .ckb/ (plugin <= 0.6.x) to the visible ckb/ — only our own marked dir, never a symlink
+  if [ "$check" != 1 ] && [ -d "$root/.ckb" ] && [ ! -L "$root/.ckb" ] && [ -f "$root/.ckb/.ckb-output" ] && [ ! -e "$root/ckb" ]; then
+    mv "$root/.ckb" "$root/ckb" || die 3 "could not migrate '$root/.ckb' to '$root/ckb'"
+    echo "MIGRATED=.ckb->ckb (legacy hidden KB folder renamed; if .ckb was committed, commit the rename: git add -A .ckb ckb)" 
+  fi
+  [ -L "$root/ckb" ] && die 4 "REFUSED: '$root/ckb' is a symlink. The KB must be a real directory in the repo."
+  [ -e "$root/ckb" ] && [ ! -d "$root/ckb" ] && die 4 "REFUSED: '$root/ckb' exists and is not a directory."
+  kb="$root/ckb"
 fi
 
 # writability: the dir itself if it exists, else its nearest existing ancestor

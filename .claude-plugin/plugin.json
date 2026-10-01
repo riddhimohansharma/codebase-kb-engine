@@ -1,8 +1,8 @@
 {
   "name": "codebase-kb-engine",
   "displayName": "Codebase KB Engine",
-  "version": "0.6.1",
-  "description": "Generate a verifiable knowledge base inside any repository at .ckb/, ready to commit: five human-readable docs (architecture, workflows, business rules, system context) plus a machine-readable ckb.json in the open CKB v0.1 format, with path:line provenance and confidence on every claim. Skips regeneration when the committed KB is still fresh. Works on a local repo or a repo URL. A fail-closed, session-scoped gate allows writes only to .ckb/.",
+  "version": "0.7.0",
+  "description": "Generate a verifiable knowledge base inside any repository at ckb/, ready to commit: five human-readable docs (architecture, workflows, business rules, system context) plus a machine-readable ckb.json in the open CKB v0.1 format, with path:line provenance and confidence on every claim. Skips regeneration when the committed KB is still fresh. Works on a local repo or a repo URL. A fail-closed, session-scoped gate allows writes only to ckb/.",
   "author": {
     "name": "Riddhi Mohan Sharma",
     "url": "https://github.com/riddhimohansharma"

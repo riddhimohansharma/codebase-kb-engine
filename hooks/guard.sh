@@ -8,7 +8,7 @@
 #
 # POLICY when enforcing — fails CLOSED:
 #   · Write/Edit only inside a dir marked `.ckb-output` (created by scripts/resolve-kb.sh); inside a git work tree
-#     only at exactly <work-tree>/.ckb — the rest of the repo stays read-only. Symlinks resolved before checking.
+#     only at exactly <work-tree>/ckb — the rest of the repo stays read-only. Symlinks resolved before checking.
 #   · Bash: plugin's own scripts, plus a read-only command allowlist; every segment head is checked.
 #   · Any tool not on the known non-mutating list is blocked (MCP tools included).
 set -uo pipefail
@@ -65,11 +65,11 @@ write_allowed(){ # $1 = raw file path
   local fp kb wt
   case "$1" in *..*) block "write path contains '..': $1" ;; "") block "write with no path (fail-closed)" ;; esac
   fp="$(canon "$1")"
-  kb="$(kb_root_of "$fp")" || block "writes are allowed only inside the KB dir (<repo>/.ckb, marked .ckb-output); denied: $fp"
-  # inside a git work tree the ONLY writable place is exactly <work-tree>/.ckb (a forged marker elsewhere is useless)
+  kb="$(kb_root_of "$fp")" || block "writes are allowed only inside the KB dir (<repo>/ckb, marked .ckb-output); denied: $fp"
+  # inside a git work tree the ONLY writable place is exactly <work-tree>/ckb (a forged marker elsewhere is useless)
   if wt="$(git -C "$(dirname "$kb")" rev-parse --show-toplevel 2>/dev/null)" && [ -n "$wt" ]; then
     wt="$(cd "$wt" && pwd -P)"
-    [ "$kb" = "$wt/.ckb" ] || block "inside a git work tree only '$wt/.ckb' is writable; denied: $fp"
+    [ "$kb" = "$wt/ckb" ] || block "inside a git work tree only '$wt/ckb' is writable; denied: $fp"
   fi
   return 0
 }

@@ -27,7 +27,7 @@ You write `ckb.draft.json`; `scripts/finalize.sh` turns it into the conforming `
   "relations": [{"from","to","kind","confidence","provenance"}]
 }
 ```
-`provenance` = `[{"path": "<repo-relative>", "line": N, "end_line?": M}]`. Paths are relative to the repo root, with no leading `/` and no `..`. **Never cite `.ckb/`**: the KB must not describe itself (spec R7; the script drops such citations).
+`provenance` = `[{"path": "<repo-relative>", "line": N, "end_line?": M}]`. Paths are relative to the repo root, with no leading `/` and no `..`. **Never cite `ckb/`**: the KB must not describe itself (spec R7; the script drops such citations).
 
 ## Enums (anything else fails validation)
 - component.kind: `service library module cli ui job other`

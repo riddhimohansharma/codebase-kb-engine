@@ -2,8 +2,8 @@
 # Input: {entities:{...}, relations:[...]} where entity `id`s are local reference keys.
 # Args:  $repo (object), $generator (object),
 #        $roots (array of absolute repo-root spellings, stripped from absolute citations),
-#        $lines (object: repo-relative path -> line count, for every cited file that exists and is not in .ckb/)
-# Does:  verify citations against real files · drop anything citing/describing .ckb/ (R7) · coerce enums ·
+#        $lines (object: repo-relative path -> line count, for every cited file that exists and is not in ckb/)
+# Does:  verify citations against real files · drop anything citing/describing ckb/ (R7) · coerce enums ·
 #        normalize join keys · derive IDs per spec · merge duplicates · remap/prune references · sort · summarize.
 # Output: {artifact, warnings}
 
@@ -15,7 +15,7 @@ def snake: gsub("(?<a>[a-z0-9])(?<b>[A-Z])"; "\(.a)_\(.b)") | ascii_downcase | g
          | if . == "" then "param" elif test("^[a-z_]") then . else "p_" + . end;
 def rank: {"confirmed": 0, "inferred": 1, "unknown": 2}[.] // 2;
 def nonempty: select(. != null and . != "");
-def in_kb: (. // "" | tostring | sub("^\\./"; "")) as $q | ($q == ".ckb" or ($q | startswith(".ckb/")));
+def in_kb: (. // "" | tostring | sub("^\\./"; "")) as $q | ($q == "ckb" or ($q | startswith("ckb/")));
 def key: tostring | ascii_downcase | gsub("[ _]+"; "-");
 # coerce a free-text enum value: exact → alias → default
 def coerce($allowed; $aliases; $default): (. // "" | key) as $v

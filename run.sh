@@ -2,7 +2,7 @@
 # Open an interactive read-only session (codebase-kb-engine) on any repo. SELF-LOCATING: resolves its own
 # folder (even through symlinks / from PATH), so there are no hardcoded paths.
 # Usage: /path/to/codebase-kb-engine/run.sh <repo-path> [extra claude args...]
-#   KB output: <repo>/.ckb (the CKB standard location; commit it)
+#   KB output: <repo>/ckb (the CKB standard location; commit it)
 set -euo pipefail
 
 # resolve this script's real directory, following symlinks (BSD/macOS safe)
