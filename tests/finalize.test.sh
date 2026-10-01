@@ -4,7 +4,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 T="$(mktemp -d)"; T="$(cd "$T" && pwd -P)"; trap 'rm -rf "$T"' EXIT
 unset KB_DIR; : > "$T/r"
-ok(){ if eval "$2"; then echo P >> "$T/r"; echo "PASS $1"; else echo F >> "$T/r"; echo "FAIL $1"; fi; }
+ok(){ if eval "$2"; then echo P >> "$T/r"; echo "PASS $1"; else echo F >> "$T/r"; echo "FAIL $1"; [ -f "$T/r.dumped" ] || { : > "$T/r.dumped"; echo "  --- finalize output:"; sed 's/^/  | /' "$T/out" 2>/dev/null | tail -25; echo "  --- manifest.json:"; head -c 600 "${M:-/dev/null}" 2>/dev/null | sed 's/^/  | /'; }; fi; }
 REPO="$T/shop"; mkdir -p "$REPO" && git -C "$REPO" init -q -b main && echo x > "$REPO/a.ts"
 git -C "$REPO" add -A && git -C "$REPO" -c user.email=t@t -c user.name=t commit -qm init
 git -C "$REPO" remote add origin "https://user:s3cret@github.com/acme/shop.git"

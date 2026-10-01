@@ -1,6 +1,6 @@
 # Codebase KB Engine: User Manual
 
-Version 0.6.0 · CKB format v0.1 (draft)
+Version 0.6.1 · CKB format v0.1 (draft)
 
 1. [What it does](#1-what-it-does)
 2. [Concepts](#2-concepts)
@@ -24,7 +24,7 @@ Version 0.6.0 · CKB format v0.1 (draft)
 Codebase KB Engine reads a repository and writes a **knowledge base into the repo itself**, at `.ckb/`, for you to commit alongside the code:
 
 - **Five documents for people**: overview, technical architecture, functional workflows, business rules, and system context and gaps, with mermaid diagrams.
-- **One artifact for machines**: `ckb.json`, in the open [CKB format](https://github.com/riddhimohansharma/ckb-spec). Tools can use it to answer questions across many repositories, such as "who calls this endpoint?", "which repos depend on this package?" or "who writes this table?"
+- **One artifact for machines**: `ckb.json`, in the open [CKB format](https://github.com/riddhimohansharma/codebase-kb-spec). Tools can use it to answer questions across many repositories, such as "who calls this endpoint?", "which repos depend on this package?" or "who writes this table?"
 
 Every claim cites the source line it came from (`path:line`) and is labelled **confirmed**, **inferred** or **unknown**. Citations are **checked against the real files**: a claim whose file or line doesn't exist is downgraded to `unknown`. Secret values from repo config that end up in the KB are **redacted** before anything is written. Generation is read-only: the plugin writes nothing except `.ckb/`, never edits source, and never commits.
 

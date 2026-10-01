@@ -11,7 +11,7 @@ Each run produces, in `.ckb/`:
 | `02-functional-workflows.md` | people | Capabilities, actors, end-to-end workflows, state machines (mermaid) |
 | `03-business-rules.md` | people | Rule catalog with enforcement sites and a traceability matrix |
 | `04-system-context-and-gaps.md` | people | System-of-systems map, contracts exposed and consumed, risks, unknowns |
-| **`ckb.json`** | machines | The same facts in the open **CKB v0.1** format ([spec](https://github.com/riddhimohansharma/ckb-spec)) |
+| **`ckb.json`** | machines | The same facts in the open **CKB v0.1** format ([spec](https://github.com/riddhimohansharma/codebase-kb-spec)) |
 | `manifest.json` | machines | Job identity, status, output checksums, validation result, confidence roll-up |
 | `README.md`, `.gitattributes` | GitHub | Browsable index; marks the directory as generated so PR diffs collapse it |
 
@@ -51,7 +51,7 @@ The JSON output includes token usage. `manifest.json` records `token_usage: null
 
 ### Where output goes: `.ckb/`, committed with the code
 
-The KB lives at **`<repo-root>/.ckb/`**, the canonical location in the [CKB spec](https://github.com/riddhimohansharma/ckb-spec), so every repo's knowledge base is found the same way:
+The KB lives at **`<repo-root>/.ckb/`**, the canonical location in the [CKB spec](https://github.com/riddhimohansharma/codebase-kb-spec), so every repo's knowledge base is found the same way:
 
 ```bash
 /kb                                         # writes .ckb/, prints the commit command
@@ -90,7 +90,7 @@ In headless URL mode, grant the sandbox so the analysis can read it: `CKB_CLONE_
 
 ## The machine artifact (`ckb.json`)
 
-`ckb.json` conforms to **CKB v0.1**, an open, versioned spec. The schema and semantic rules are vendored in [`spec/v0.1/`](spec/v0.1/) and pinned to a ckb-spec commit in `spec/v0.1/SOURCE`. The plugin reads nothing outside its own directory.
+`ckb.json` conforms to **CKB v0.1**, an open, versioned spec. The schema and semantic rules are vendored in [`spec/v0.1/`](spec/v0.1/) and pinned to a codebase-kb-spec commit in `spec/v0.1/SOURCE`. The plugin reads nothing outside its own directory.
 
 > CKB v0.1 is a **draft**: it may change incompatibly before 1.0. Every artifact declares `"ckb_version": "0.1"`.
 
@@ -118,7 +118,7 @@ git clone https://github.com/riddhimohansharma/codebase-kb-engine && cd codebase
 tests/guard.test.sh       # 81 safety checks (gate, resolver, clone sandbox)
 tests/finalize.test.sh    # 51 conformance checks: normalization, IDs, determinism, freshness, R7, manifest
 claude plugin validate .  # manifest checks
-tools/sync-spec.sh --check # vendored spec matches ckb-spec (pin in spec/v0.1/SOURCE)
+tools/sync-spec.sh --check # vendored spec matches codebase-kb-spec (pin in spec/v0.1/SOURCE)
 claude --plugin-dir .     # load without installing
 ```
 

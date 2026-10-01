@@ -96,7 +96,8 @@ jq -n --arg id "$job_id" --arg mode "$mode" --arg started "${started:-$now}" --a
    entity_counts: ($art[0].entities | map_values(length)) + {relations: ($art[0].relations // [] | length)},
    warnings: $norm.warnings,
    token_usage: null,
-   token_usage_note: "Not observable from inside the session. Headless runs: read usage from `claude -p --output-format json`."}' > "$kb/manifest.json"
+   token_usage_note: "Not observable from inside the session. Headless runs: read usage from `claude -p --output-format json`."}' > "$kb/manifest.json.tmp" \
+  && mv -f "$kb/manifest.json.tmp" "$kb/manifest.json" || die 1 "manifest generation failed (jq error above)"
 
 redact_values > "$tmpd/secrets"
 while IFS= read -r v; do

@@ -2,13 +2,21 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/). The plugin `name` `codebase-kb-engine` is permanent.
 
+## [0.6.1] — 2026-09-30
+
+### Changed
+- The spec repository is now **`codebase-kb-spec`**, renamed from `ckb-spec`. Links, `tools/sync-spec.sh` defaults and the vendored schema `$id` are updated, and the spec is re-vendored at `codebase-kb-spec@543dc15`.
+
+### Fixed
+- `finalize.sh` now fails loudly if writing `manifest.json` fails, instead of leaving a stale or empty manifest. The conformance test prints the finalize output on its first failure, which helps diagnose CI.
+
 ## [0.6.0] — 2026-09-30
 
 ### Changed
 - **The KB now lives in the repo at `<repo-root>/.ckb/`** and is committed with the code. This is the CKB spec's canonical location. The old sibling `../<repo>-kb/` directory and the `KB_DIR` override for local mode are gone. `KB_DIR` now applies only to URL mode, whose default output is `<name>-ckb/`.
 - The guard allows writes inside a git work tree only at exactly `<work-tree>/.ckb`. Nested `.ckb` dirs, look-alike names, forged markers elsewhere, and symlinked `.ckb` dirs are all refused.
 - The marker file is static, so there are no paths or timestamps to commit. Local mode no longer needs `--add-dir`.
-- The vendored spec is now `ckb-spec@6ac5404`: in-repo location, freshness rule, and rule R7.
+- The vendored spec is now `codebase-kb-spec@6ac5404`: in-repo location, freshness rule, and rule R7.
 
 ### Added
 - `scripts/freshness.sh`, implementing the spec's rule: fresh at `Y` if and only if nothing outside `.ckb/` changed since `commit_sha`. `/kb` skips when the KB is fresh; `/kb --force` overrides. `/kb-validate` reports freshness.
@@ -37,7 +45,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 - **Repo-URL mode**: `/kb <url> [branch]` makes a shallow, push-disabled clone in a sandbox and destroys it after the job, even on failure. URLs with embedded credentials are refused, and the default branch is detected rather than assumed.
 - **Output directory resolution** (`scripts/resolve-kb.sh`): `$KB_DIR`, else a `<repo>-kb` sibling. The resolver refuses any location inside the target repo and prints the exact `claude --add-dir` line when it can't write. This works in marketplace installs, where no wrapper sets `KB_DIR`.
 - `/kb-unlock` and the `ckb-contract` skill.
-- `tools/sync-spec.sh`: vendors the spec from a ckb-spec checkout and records the source commit in `spec/v0.1/SOURCE`. With `--check`, it detects drift.
+- `tools/sync-spec.sh`: vendors the spec from a codebase-kb-spec checkout and records the source commit in `spec/v0.1/SOURCE`. With `--check`, it detects drift.
 - `tests/guard.test.sh` (66 safety checks) and `tests/finalize.test.sh`.
 
 ### Verified
