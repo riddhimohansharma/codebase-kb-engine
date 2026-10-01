@@ -6,7 +6,7 @@ Produce the knowledge base for the target below. The code is READ-ONLY: the guar
 
 Arguments: `$ARGUMENTS`
 
-**0. Load the contracts.** Before anything else, invoke the Skill tool for `codebase-kb-engine:kb-docs` (the human docs) and `codebase-kb-engine:ckb-contract` (the machine artifact). Follow both exactly.
+**Rule:** run each `${CLAUDE_PLUGIN_ROOT}/scripts/*` command **on its own**, never chained with `;`, `&&` or `|`. Plugin scripts are pre-approved only as standalone commands.
 
 **1. Mode.** Remove a leading `--force` flag if present and remember it. If the next argument starts with `https://`, `http://`, `ssh://`, `git://`, or matches `user@host:path`, this is **URL mode**: the following argument (if present and it contains no spaces) is the branch, and anything after that is focus. Otherwise this is **local mode** (the standard): the target is the current git repo, the KB is `<repo-root>/ckb/`, and all arguments are focus.
 
@@ -23,6 +23,8 @@ If the output includes a `MIGRATED=` line, tell the user the legacy hidden `.ckb
 - **Self-improvement:** if `<KB_DIR>/manifest.json` from a previous run has a `feedback` block, read it. Give `feedback.next_run_focus` (files left uncited and claims downgraded last time) to the scouts as **first priority**. In the final report, list every `feedback.improve_candidates` entry as a suggested rule improvement for the plugin maintainer.
 
 **4. Permission probe.** Write `<KB_DIR>/manifest.json` with `{"status":"running"}` using the Write tool. If it is denied, print exactly one line, the `ADD_DIR_HINT` value, run step 11 if in URL mode, and STOP.
+
+**4b. Load the contracts** (only now, so a fresh KB costs nothing extra). Invoke the Skill tool for `codebase-kb-engine:kb-docs` (the human docs) and `codebase-kb-engine:ckb-contract` (the machine artifact). Follow both exactly.
 
 **5. Inventory (deterministic).** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/inventory.sh" "<REPO_ROOT>"`. It returns the language mix, workspaces, `areas`, and every candidate file per bucket (manifests, lockfiles, routes, events, datastores, migrations, iac, ci, config, api_specs). Generated, vendored and `ckb/` paths are already excluded. **This list is your checklist:** every manifest and API spec in it must end up cited.
 

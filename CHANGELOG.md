@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.8.1] — 2026-10-01
+- `repokb` headless runs allow the Agent and Skill tools and use namespaced commands.
+- `/kb` loads its skills after the freshness check; plugin scripts run as standalone commands.
+
 ## [0.8.0] — 2026-10-01
 - License changed to PolyForm Shield 1.0.0.
 - Emits CKB v0.2: purl dependencies, artifacts, services, config keys, external services, API specs.

@@ -79,7 +79,7 @@ resolve_kb(){ # delegates to the plugin's resolver: refuses KB inside the repo, 
 headless(){
   local prompt="$1" addkb="${2:-0}"
   local flags=( -p "$prompt" --plugin-dir "$ENGINE" --permission-mode acceptEdits
-    --allowedTools "Read,Grep,Glob,Bash,BashOutput,Write,Edit,MultiEdit,Task,TodoWrite,WebFetch,WebSearch" )
+    --allowedTools "Read,Grep,Glob,Bash,BashOutput,Write,Edit,MultiEdit,Task,Agent,Skill,TodoWrite" )
   [ "$addkb" = 1 ] && flags+=( --add-dir "$KB" )
   [ -n "${REPOKB_MODEL:-}" ]     && flags+=( --model "$REPOKB_MODEL" )
   [ -n "${REPOKB_MAX_TURNS:-}" ] && flags+=( --max-turns "$REPOKB_MAX_TURNS" )
@@ -107,21 +107,21 @@ case "$cmd" in
     REPO="$(resolve_repo "${1:-}")"; shift || true
     KB="$(resolve_kb "$REPO")"; export KB_DIR="$KB"
     say "repo   : $REPO   (read-only)"; say "KB_DIR : $KB   (writable — KB output only)"
-    rc=0; headless "/kb ${*:-}" 1 || rc=$?
+    rc=0; headless "/codebase-kb-engine:kb ${*:-}" 1 || rc=$?
     trailer "$rc" kb; exit "$rc" ;;
 
   map)
     REPO="$(resolve_repo "${1:-}")"
-    rc=0; headless "/map" 0 || rc=$?; trailer "$rc"; exit "$rc" ;;
+    rc=0; headless "/codebase-kb-engine:map" 0 || rc=$?; trailer "$rc"; exit "$rc" ;;
 
   hunt)
     REPO="$(resolve_repo "${1:-}")"; shift || true
-    rc=0; headless "/hunt ${*:-}" 0 || rc=$?; trailer "$rc"; exit "$rc" ;;
+    rc=0; headless "/codebase-kb-engine:hunt ${*:-}" 0 || rc=$?; trailer "$rc"; exit "$rc" ;;
 
   plan)
     REPO="$(resolve_repo "${1:-}")"; shift || true
     [ -n "${*:-}" ] || die "plan needs a <what> argument"
-    rc=0; headless "/plan ${*}" 0 || rc=$?; trailer "$rc"; exit "$rc" ;;
+    rc=0; headless "/codebase-kb-engine:plan ${*}" 0 || rc=$?; trailer "$rc"; exit "$rc" ;;
 
   run)
     REPO="$(resolve_repo "${1:-}")"; shift || true
