@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="Codebase KB Engine — Codebase Knowledge Base Engine" width="560">
+</p>
+
 # Codebase KB Engine
 
-A Claude Code plugin that generates a **verifiable knowledge base inside any repository**, at `<repo>/ckb/`, ready to commit alongside the code. Generation is read-only: the plugin writes only to `ckb/` and never edits source or commits.
+**Codebase Knowledge Base Engine.** A Claude Code plugin that generates a **verifiable knowledge base inside any repository**, at `<repo>/ckb/`, ready to commit alongside the code. Generation is read-only: the plugin writes only to `ckb/` and never edits source or commits.
 
 Each run produces, in `ckb/`:
 
@@ -14,7 +18,7 @@ Each run produces, in `ckb/`:
 | `05-operations.md` | ops, on-call | Build, run locally, test, deploy and environments, observability, alerts and failure modes, rollback |
 | `06-security-and-data.md` | security | Trust boundaries, AuthN/AuthZ, data classification, secrets inventory (names only), findings |
 | `07-decisions.md` | architects | Evidence-based decision log (ADR-lite) |
-| `90-reference.md` | everyone, tools | Generated tables from `ckb.json`: interfaces, dependencies, artifacts, services, datastores, config, external services, API specs, relations |
+| `09-reference.md` | everyone, tools | Generated tables from `ckb.json`: interfaces, dependencies, artifacts, services, datastores, config, external services, API specs, relations |
 | **`ckb.json`** | machines | The same facts in the open **CKB v0.2** format ([spec](https://github.com/riddhimohansharma/codebase-kb-spec)), built for cross-repo graphs |
 | `manifest.json` | machines | Job identity, status, coverage, output checksums, validation (schema, rules, doc lint), confidence roll-up |
 | `README.md`, `.gitattributes`, `.gitignore` | GitHub | Browsable index; generated-file marking; keeps transient files out of commits |

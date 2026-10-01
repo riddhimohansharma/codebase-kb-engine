@@ -89,7 +89,7 @@ Open `ckb/README.md` on GitHub to browse the KB. Run `/kb` again at any time: if
 4. **Runs up to 8 scouts in parallel.** One mechanical `scout-inventory` (haiku) handles dependencies, artifacts, services, config and API specs; one `scout` (sonnet) per area handles routes, calls, events, datastores, rules and workflows. Each returns a JSON fragment. Failed scopes are retried once; anything still missing is listed as `[?] not scanned` and never guessed.
 5. Writes the 8 docs.
 6. **Audits up to 15 confirmed claims** against their source lines, using the `auditor` agent (haiku). Unsupported claims are downgraded.
-7. **Finalizes:** merges fragments, computes coverage, derives IDs, normalizes, lints the docs, checks that the docs and JSON agree, injects front-matter and anchors, generates `90-reference.md`, redacts secrets, validates, and writes the outputs. Coverage gaps trigger one targeted re-scan.
+7. **Finalizes:** merges fragments, computes coverage, derives IDs, normalizes, lints the docs, checks that the docs and JSON agree, injects front-matter and anchors, generates `09-reference.md`, redacts secrets, validates, and writes the outputs. Coverage gaps trigger one targeted re-scan.
 8. Prints `STATUS=…`, coverage, the confidence and audit summary, the top 3 open questions, and the **commit command**. It does not run that command.
 
 **Focus:** `/kb billing` still writes all eight documents but weights them toward that subsystem.
@@ -147,7 +147,7 @@ ckb/
 ├── 05-operations.md                build, run, test, deploy, observability, alerts, rollback
 ├── 06-security-and-data.md         trust boundaries, auth, data classification, secrets (names only), findings
 ├── 07-decisions.md                 ADR-lite decision log (evidence-based)
-├── 90-reference.md                 generated tables from ckb.json
+├── 09-reference.md                 generated tables from ckb.json
 ├── ckb.json                        CKB v0.2 artifact
 ├── manifest.json                   job record: status, coverage, validation, warnings
 ├── .gitattributes / .gitignore     generated-file marking; transient files never committed
@@ -178,7 +178,7 @@ Every doc starts with **deterministic YAML front-matter** (`ckb_doc`, audience, 
 
 ### `manifest.json`
 
-`ckb_version` · `job` · `status` (`complete`, `incomplete`, `invalid` or `unverified`) · `repo` (plus `dirty_worktree`) · `outputs` for the 8 docs, `90-reference.md` and `ckb.json` (sha256, bytes, present) · `validation` (structural, semantic, messages, **`docs`** lint violations) · **`coverage`** · `confidence_summary` · `entity_counts` · `warnings` · `token_usage` (null) and `token_usage_note`.
+`ckb_version` · `job` · `status` (`complete`, `incomplete`, `invalid` or `unverified`) · `repo` (plus `dirty_worktree`) · `outputs` for the 8 docs, `09-reference.md` and `ckb.json` (sha256, bytes, present) · `validation` (structural, semantic, messages, **`docs`** lint violations) · **`coverage`** · `confidence_summary` · `entity_counts` · `warnings` · `token_usage` (null) and `token_usage_note`.
 
 ## 7. Freshness and committing the KB
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.4] — 2026-10-01
+- Generated reference renamed to `09-reference.md` (was `90-reference.md`; the old file is removed on regeneration).
+- CKB brand icon and logo; README title "Codebase KB Engine — Codebase Knowledge Base Engine".
+- Fixed run metrics and reports not being recorded on jq 1.7 (Linux).
+
 ## [0.9.3] — 2026-10-01
 - Telemetry endpoint moved to `codebase-kb-telemetry.codebase-kb.workers.dev`.
 

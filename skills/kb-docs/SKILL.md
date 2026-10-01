@@ -30,7 +30,7 @@ Write exactly these 8 into `<KB_DIR>` with absolute paths. Do not write anything
 | `06-security-and-data.md` | Trust boundaries, auth, data classes, secrets inventory, findings | reference | 300–1500 |
 | `07-decisions.md` | ADR-lite log of observed/inferred decisions (arc42 9) | explanation | 300–1500 |
 
-Generated, never hand-written: YAML front-matter on each doc (`scripts/docmeta.sh`), `90-reference.md` (`scripts/reference.sh`, tables from `ckb.json`), `README.md`, `ckb.json`, `manifest.json`. Do not write front-matter yourself; if present it is replaced.
+Generated, never hand-written: YAML front-matter on each doc (`scripts/docmeta.sh`), `09-reference.md` (`scripts/reference.sh`, tables from `ckb.json`), `README.md`, `ckb.json`, `manifest.json`. Do not write front-matter yourself; if present it is replaced.
 
 ## Global rules (lint-enforced)
 1. **Structure.** Line 1 is `# <Doc title>`. Then the required `##` headings below, verbatim, unnumbered, in the listed order. Extra `##` sections are allowed after the required ones. Every required section has content.
@@ -55,12 +55,12 @@ Generated, never hand-written: YAML front-matter on each doc (`scripts/docmeta.s
 `## Elevator pitch` · `## Executive summary` · `## Stakeholders and users` · `## Quality goals` · `## Glossary` · `## Macro context` · `## How to read this KB`
 - Glossary: table `| Term | Meaning | Source |`, ubiquitous language only.
 - Macro context: which larger system this belongs to and what it needs to be complete.
-- How to read this KB: the confidence legend and a one-line pointer to each doc, including `90-reference.md`.
+- How to read this KB: the confidence legend and a one-line pointer to each doc, including `09-reference.md`.
 
 ### 01-technical-architecture.md
 `## First-principles core` · `## Containers (C4 L2)` · `## Components (C4 L3)` · `## Data model` · `## Interfaces` · `## Dependencies` · `## Configuration reference` · `## Deployment` · `## Non-functional posture`
 - Containers: `C4Container` diagram + caption. Components: `flowchart` + one anchored `###` per significant component (responsibility, collaborators, citations). Data model: `erDiagram` + entity lifecycles.
-- Interfaces: one anchored `###` per significant interface or a table; full listing lives in `90-reference.md`.
+- Interfaces: one anchored `###` per significant interface or a table; full listing lives in `09-reference.md`.
 - Dependencies: direction (upstream/downstream), why each critical one matters. Configuration reference: key names, purpose, secret yes/no. Never values.
 - Non-functional posture: security, compliance/PHI, performance, reliability, observability, each tagged.
 

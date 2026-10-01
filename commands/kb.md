@@ -50,7 +50,7 @@ Give each scout the absolute root, its path scope, its slice of the inventory, a
 **9. Finalize.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/finalize.sh" "<REPO_ROOT>" "<KB_DIR>" --started-at "<start>" --audit "<supported>/<audited>"` (the step 8 audit counts). In URL mode, add `--mode url --url "<REPO_URL>" --branch "<BRANCH>"`. It does the following:
 - merges `ckb.draft.d/`, inventories the repo and computes coverage;
 - derives IDs and normalizes everything;
-- lints the docs, checks that the docs and the JSON agree, injects doc front-matter, rewrites local ids to final ids in the docs, and generates `90-reference.md`;
+- lints the docs, checks that the docs and the JSON agree, injects doc front-matter, rewrites local ids to final ids in the docs, and generates `09-reference.md`;
 - redacts secrets, validates, and writes `ckb.json`, `manifest.json`, `README.md`, `.gitattributes` and `.gitignore`.
 
 If `STATUS` is not `complete`, run `kbq.sh status <KB_DIR>` and read the reported violations:

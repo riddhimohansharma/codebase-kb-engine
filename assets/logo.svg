@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" width="960" height="300" role="img" aria-labelledby="t">
+  <title id="t">Codebase KB Engine — Codebase Knowledge Base Engine</title>
+  <style>
+    .parent { fill: #64748B; } .product { fill: #0F172A; } .tag { fill: #475569; } .mark { fill: #2563EB; }
+    @media (prefers-color-scheme: dark) { .parent { fill: #94A3B8; } .product { fill: #F8FAFC; } .tag { fill: #CBD5E1; } .mark { fill: #60A5FA; } }
+    text { font-family: Inter, "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4338CA"/><stop offset="0.55" stop-color="#2563EB"/><stop offset="1" stop-color="#0891B2"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(20 20) scale(0.5078)">
+    <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+    <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M150 132 C116 132 112 154 112 186 L112 222 C112 244 102 256 82 256 C102 256 112 268 112 290 L112 326 C112 358 116 380 150 380"/>
+      <path d="M362 132 C396 132 400 154 400 186 L400 222 C400 244 410 256 430 256 C410 256 400 268 400 290 L400 326 C400 358 396 380 362 380"/>
+    </g>
+    <g stroke="#FFFFFF" stroke-width="16" stroke-linecap="round">
+      <line x1="206" y1="166" x2="206" y2="346"/><line x1="206" y1="256" x2="314" y2="170"/><line x1="206" y1="256" x2="314" y2="342"/>
+    </g>
+    <g fill="#FFFFFF"><circle cx="206" cy="166" r="22"/><circle cx="206" cy="346" r="22"/></g>
+    <circle cx="206" cy="256" r="30" fill="#FFFFFF"/><circle cx="206" cy="256" r="13" fill="#2563EB"/>
+    <g fill="#FCD34D" stroke="#FFFFFF" stroke-width="8"><circle cx="314" cy="170" r="26"/><circle cx="314" cy="342" r="26"/></g>
+  </g>
+  <text x="330" y="128" font-size="62" font-weight="400" class="parent" letter-spacing="1">Codebase</text>
+  <text x="330" y="204" font-size="88" font-weight="800" class="product" letter-spacing="-1">KB Engine</text>
+  <text x="333" y="258" font-size="30" font-weight="500" class="tag" letter-spacing="0.5">Codebase Knowledge Base Engine <tspan class="mark" font-weight="700">· CKB</tspan></text>
+</svg>

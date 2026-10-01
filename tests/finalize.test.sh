@@ -22,13 +22,13 @@ mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1; rc=$?
 A="$KB/ckb.json"; M="$KB/manifest.json"; q(){ jq -r "$1" "$A"; }
 ok "golden: finalize exits 0, status complete"        '[ $rc -eq 0 ] && [ "$(jq -r .status "$M")" = complete ]'
 ok "golden: ckb_version 0.2, schema+semantic pass"    '[ "$(q .ckb_version)" = 0.2 ] && [ "$(jq -r ".validation.structural+\"/\"+.validation.semantic" "$M")" = "pass/pass" ]'
-ok "golden: 8 docs + 90-reference + ckb.json hashed"  '[ "$(jq "[.outputs[] | select(.present and (.sha256|length)==64)] | length" "$M")" = 10 ]'
+ok "golden: 8 docs + 09-reference + ckb.json hashed"  '[ "$(jq "[.outputs[] | select(.present and (.sha256|length)==64)] | length" "$M")" = 10 ]'
 ok "golden: no doc lint violations recorded"          '[ "$(jq ".validation.docs | length" "$M")" = 0 ]'
 ok "golden: front-matter injected with source commit" 'head -20 "$KB/03-business-rules.md" | grep -q "^source_commit: \"$(git -C "$GOLD" rev-parse HEAD)\""'
-ok "golden: 90-reference.md generated from ckb.json"  'grep -q "^ckb_doc: \"reference\"" "$KB/90-reference.md" && grep -q "pkg:" "$KB/90-reference.md"'
+ok "golden: 09-reference.md generated from ckb.json"  'grep -q "^ckb_doc: \"reference\"" "$KB/09-reference.md" && grep -q "pkg:" "$KB/09-reference.md"'
 ok "golden: coverage present, no uncited manifests"   '[ "$(q ".coverage.buckets.manifests.uncited | length")" = 0 ] && [ "$(q ".coverage.files_total")" -gt 0 ]'
 ok "golden: repo.url canonical, credentials stripped" '[ "$(q .repo.url)" = "https://github.com/Acme/Shop" ] && ! grep -rq s3cret "$KB"'
-ok "golden: README indexes 8 docs + reference"        '[ "$(grep -cE "^\| \[(0[0-7]|90)-" "$KB/README.md")" = 9 ]'
+ok "golden: README indexes 8 docs + reference"        '[ "$(grep -cE "^\| \[0[0-9]-" "$KB/README.md")" = 9 ]'
 ok "golden: .gitattributes + .gitignore (draft.d)"    'grep -qx "\* linguist-generated=true" "$KB/.gitattributes" && grep -qx "ckb.draft.d/" "$KB/.gitignore"'
 ok "golden: draft removed; producer did not commit"   '[ ! -e "$KB/ckb.draft.json" ] && grep -q "^COMMIT_HINT=git add ckb" "$T/out" && [ "$(git -C "$GOLD" rev-list --count HEAD)" = 1 ]'
 cp "$A" "$T/a1"; for f in "$KB"/0*.md; do cp "$f" "$T/$(basename "$f").1"; done

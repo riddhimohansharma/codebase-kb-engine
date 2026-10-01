@@ -1,6 +1,6 @@
 ---
 name: kb-writer
-description: Writes codebase-kb-engine /kb human docs (ckb/0*.md) from the scouts' draft fragments, following the kb-docs skill exactly. Writes only inside ckb/; never modifies source.
+description: Writes codebase-kb-engine /kb human docs (ckb/00–07 *.md; 09-reference.md is generated) from the scouts' draft fragments, following the kb-docs skill exactly. Writes only inside ckb/; never modifies source.
 model: sonnet
 effort: medium
 maxTurns: 40
