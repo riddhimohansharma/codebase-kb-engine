@@ -5,7 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 ## [0.6.1] — 2026-09-30
 
 ### Changed
-- The spec repository is now **`codebase-kb-spec`**, renamed from `ckb-spec`. Links, `tools/sync-spec.sh` defaults and the vendored schema `$id` are updated, and the spec is re-vendored at `codebase-kb-spec@543dc15`.
+- The spec repository is now **`codebase-kb-spec`**, renamed from `ckb-spec`. Links, `tools/sync-spec.sh` defaults and the vendored schema `$id` are updated, and the spec is re-vendored at `codebase-kb-spec@e884f8f`.
 
 ### Fixed
 - **Linux/jq 1.7:** `manifest.json` generation failed with a jq syntax error, because jq 1.7 rejects an unparenthesized `a + b` as an object value and jq 1.8 accepts it. Ubuntu CI caught it. Both test suites now pass on jq 1.6, 1.7 and 1.8.
@@ -17,7 +17,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 - **The KB now lives in the repo at `<repo-root>/.ckb/`** and is committed with the code. This is the CKB spec's canonical location. The old sibling `../<repo>-kb/` directory and the `KB_DIR` override for local mode are gone. `KB_DIR` now applies only to URL mode, whose default output is `<name>-ckb/`.
 - The guard allows writes inside a git work tree only at exactly `<work-tree>/.ckb`. Nested `.ckb` dirs, look-alike names, forged markers elsewhere, and symlinked `.ckb` dirs are all refused.
 - The marker file is static, so there are no paths or timestamps to commit. Local mode no longer needs `--add-dir`.
-- The vendored spec is now `codebase-kb-spec@6ac5404`: in-repo location, freshness rule, and rule R7.
+- The vendored spec is now `codebase-kb-spec@582b39d`: in-repo location, freshness rule, and rule R7.
 
 ### Added
 - `scripts/freshness.sh`, implementing the spec's rule: fresh at `Y` if and only if nothing outside `.ckb/` changed since `commit_sha`. `/kb` skips when the KB is fresh; `/kb --force` overrides. `/kb-validate` reports freshness.
