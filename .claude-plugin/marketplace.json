@@ -11,7 +11,7 @@
       "source": "./",
       "description": "Read-only codebase knowledge base in <repo>/ckb/: 8 docs + CKB v0.2 ckb.json (purl dependencies, provider artifacts/services, verified path:line provenance) for cross-repo graphs.",
       "displayName": "Codebase KB Engine",
-      "version": "0.9.2",
+      "version": "0.9.3",
       "category": "development",
       "tags": [
         "codebase",

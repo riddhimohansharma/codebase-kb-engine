@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.9.3] — 2026-10-01
+- Telemetry endpoint moved to `codebase-kb-telemetry.codebase-kb.workers.dev`.
+
 ## [0.9.2] — 2026-10-01
 - Anonymous usage reports go live (relay endpoint configured).
 
