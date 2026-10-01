@@ -152,7 +152,7 @@ tools/sync-spec.sh --check # vendored spec matches codebase-kb-spec (pin in spec
 claude --plugin-dir .     # load without installing
 ```
 
-Optional wrapper (sets `CKB_ENFORCE=always` for the whole session): `bash bootstrap.sh`, then `repokb doctor`, `repokb kb ~/code/app`, or `repokb run ~/code/app`. Output always goes to `~/code/app/ckb/`; the wrapper's `--kb-dir` applies only to URL mode.
+Optional wrapper (sets `CKB_ENFORCE=always` for the whole session): `bash bootstrap.sh`, then `codebase-kb-engine doctor`, `codebase-kb-engine kb ~/code/app`, or `codebase-kb-engine run ~/code/app`. Output always goes to `~/code/app/ckb/`; the wrapper's `--kb-dir` applies only to URL mode.
 
 Security issues: see [SECURITY.md](SECURITY.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 

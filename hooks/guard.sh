@@ -3,7 +3,7 @@
 # Contract: exit 2 = BLOCK (reason -> stderr, returned to Claude); exit 0 = ALLOW.
 #
 # SCOPE: enforces only in sessions that are ARMED (an engine command was typed, or a plugin
-# script was invoked — see arm.sh), or when CKB_ENFORCE=always (set by the repokb/run.sh wrappers).
+# script was invoked — see arm.sh), or when CKB_ENFORCE=always (set by the codebase-kb-engine/run.sh wrappers).
 # Unarmed sessions pass through untouched, so installing the plugin never locks normal work.
 #
 # POLICY when enforcing — fails CLOSED:

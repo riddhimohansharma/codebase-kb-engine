@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.8.2] — 2026-10-01
+- CLI wrapper renamed from `repokb` to `codebase-kb-engine`.
+
 ## [0.8.1] — 2026-10-01
 - `repokb` headless runs allow the Agent and Skill tools and use namespaced commands.
 - `/kb` loads its skills after the freshness check; plugin scripts run as standalone commands.

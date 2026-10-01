@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# repokb — local wrapper for the codebase-kb-engine plugin (optional; marketplace installs use /kb directly).
+# codebase-kb-engine — local wrapper for the codebase-kb-engine plugin (optional; marketplace installs use /kb directly).
 # Self-locating (symlink/PATH safe). Read-only toward code; writes only a KB under KB_DIR.
 set -euo pipefail
 
@@ -19,13 +19,13 @@ fi
 
 JSON=0; DRY=0; KB_OVERRIDE="${KB_DIR:-}"
 say(){ printf '%s\n' "$*" >&2; }
-die(){ printf 'repokb: %s\n' "$1" >&2; exit "${2:-1}"; }
+die(){ printf 'codebase-kb-engine: %s\n' "$1" >&2; exit "${2:-1}"; }
 
 usage(){ cat >&2 <<'HELPDOC'
-repokb — codebase-kb-engine local wrapper: read-only repo analysis + CKB knowledge base
+codebase-kb-engine — codebase-kb-engine local wrapper: read-only repo analysis + CKB knowledge base
 
 USAGE
-  repokb <command> [global-opts] [args]
+  codebase-kb-engine <command> [global-opts] [args]
 
 COMMANDS
   kb    <repo> [focus]   Generate the full knowledge base (headless) into KB_DIR
@@ -34,7 +34,7 @@ COMMANDS
   plan  <repo> <what>    Five-step plan + patch as text (headless)
   run   <repo> [--...]   Open an interactive session on the repo (human)
   doctor                 Check environment + engine integrity
-  install [dir]          Symlink 'repokb' onto PATH (default /usr/local/bin or ~/.local/bin)
+  install [dir]          Symlink 'codebase-kb-engine' onto PATH (default /usr/local/bin or ~/.local/bin)
   help | version
 
 GLOBAL OPTIONS
@@ -46,11 +46,11 @@ ENV  KB_DIR · REPOKB_MODEL (model) · REPOKB_MAX_TURNS
 SAFETY  wrapper sessions run with CKB_ENFORCE=always: the repo is read-only; writes go only to the marked KB dir.
 
 EXAMPLES
-  repokb doctor
-  repokb run  ~/code/myapp                 # interactive
-  repokb kb   ~/code/myapp                  # KB -> ~/code/myapp/ckb (commit it)
-  repokb kb   ~/code/myapp billing --json   # focused, JSON output
-  repokb kb   ~/code/myapp --dry-run        # preview the exact command
+  codebase-kb-engine doctor
+  codebase-kb-engine run  ~/code/myapp                 # interactive
+  codebase-kb-engine kb   ~/code/myapp                  # KB -> ~/code/myapp/ckb (commit it)
+  codebase-kb-engine kb   ~/code/myapp billing --json   # focused, JSON output
+  codebase-kb-engine kb   ~/code/myapp --dry-run        # preview the exact command
 HELPDOC
 }
 
@@ -146,9 +146,9 @@ case "$cmd" in
   install)
     dir="${1:-$HOME/.local/bin}"
     mkdir -p "$dir"
-    chmod +x "$ENGINE/repokb" "$ENGINE/run.sh" "$ENGINE"/hooks/*.sh "$ENGINE"/scripts/*.sh 2>/dev/null || true
-    ln -sf "$ENGINE/repokb" "$dir/repokb"
-    say "linked : $dir/repokb -> $ENGINE/repokb"
+    chmod +x "$ENGINE/codebase-kb-engine" "$ENGINE/run.sh" "$ENGINE"/hooks/*.sh "$ENGINE"/scripts/*.sh 2>/dev/null || true
+    ln -sf "$ENGINE/codebase-kb-engine" "$dir/codebase-kb-engine"
+    say "linked : $dir/codebase-kb-engine -> $ENGINE/codebase-kb-engine"
     sh_name="$(basename "${SHELL:-sh}")"
     case "$sh_name" in
       fish)
@@ -161,9 +161,9 @@ case "$cmd" in
         say "PATH   : ensured in ~/.bashrc" ;;
       *) say "PATH   : add $dir to your PATH" ;;
     esac
-    printf 'STATUS=OK BIN=%s/repokb  (open a NEW terminal, then: repokb doctor)\n' "$dir" ;;
+    printf 'STATUS=OK BIN=%s/codebase-kb-engine  (open a NEW terminal, then: codebase-kb-engine doctor)\n' "$dir" ;;
 
-  version) echo "repokb $VERSION (engine: $ENGINE)" ;;
+  version) echo "codebase-kb-engine $VERSION (engine: $ENGINE)" ;;
   help|-h|--help) usage ;;
-  *) die "unknown command: $cmd (try: repokb help)" ;;
+  *) die "unknown command: $cmd (try: codebase-kb-engine help)" ;;
 esac
