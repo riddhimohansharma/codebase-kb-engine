@@ -60,6 +60,6 @@ If `STATUS` is not `complete`, run `kbq.sh status <KB_DIR>` and read the reporte
 
 Then re-run finalize, at most 2 times in total. After that, report what remains honestly.
 
-**10. Report.** Give the `STATUS=` line, the coverage summary (cited out of found per bucket), the confidence summary, the audit result, and the top 3 open questions. In local mode, end with the `COMMIT_HINT` command. **Do not run it yourself.**
+**10. Report.** If finalize printed a `TELEMETRY_NOTICE=` line, show its text to the user once, verbatim. Then give the `STATUS=` line, the coverage summary (cited out of found per bucket), the confidence summary, the audit result, and the top 3 open questions. In local mode, end with the `COMMIT_HINT` command. **Do not run it yourself.**
 
 **11. URL mode cleanup: always, even after failure.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/clone.sh" destroy "<JOB_DIR>"` and confirm the `DESTROYED=` line. Never push, and never copy source into the KB beyond short citations.

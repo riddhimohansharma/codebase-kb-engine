@@ -49,3 +49,4 @@ jq -r '
   "  top doc lint:", (.top_docs_violations | to_entries[] | "    \(.value)× \(.key)"),
   "  versions:      \(.plugin_versions | to_entries | map("\(.key)=\(.value)") | join("  "))",
   "Share an anonymized copy with the maintainer: stats.sh --submit"' <<<"$summary"
+"$ROOT/scripts/telemetry.sh" status | sed -n 1p

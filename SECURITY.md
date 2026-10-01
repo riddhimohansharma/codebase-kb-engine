@@ -8,6 +8,9 @@ Codebase KB Engine analyses repositories **read-only**. While a session is armed
 - Hooks run with your user privileges, as all Claude Code plugin hooks do. Read `hooks/` before installing.
 - Deleting a clone removes it with `rm -rf`. On SSDs, that doesn't guarantee physical erasure.
 
+## Anonymous usage reports
+The plugin sends one anonymous report per run (on by default; see README). Reports contain counts and category IDs only, never names, paths, code or values. Disable with `codebase-kb-engine telemetry off`, `CKB_TELEMETRY=off` or `DO_NOT_TRACK=1`.
+
 ## Reporting a vulnerability
 Please **do not open a public issue** for a bypass of the read-only gate or the clone sandbox. Report it privately through GitHub: **Security → Report a vulnerability** on this repository. Include the hook payload or command that got through, and the Claude Code and OS versions.
 

@@ -1,7 +1,7 @@
 {
   "name": "codebase-kb-engine",
   "displayName": "Codebase KB Engine",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Generate a verifiable, graph-ready knowledge base inside any repository at ckb/, ready to commit: eight human docs (architecture with C4 views, workflows, business rules, system context, operations, security & data, decisions) plus a generated reference and a machine-readable ckb.json in the open CKB v0.2 format \u2014 purl-identified dependencies, what the repo publishes (artifacts, services), interfaces with call targets, datastores, config names, external services and API specs, every claim with verified path:line provenance and confidence, plus a coverage report. Polyglot (30+ manifest types, 20+ web frameworks). Skips when the committed KB is fresh. A fail-closed, session-scoped gate allows writes only to ckb/.",
   "author": {
     "name": "Riddhi Mohan Sharma",

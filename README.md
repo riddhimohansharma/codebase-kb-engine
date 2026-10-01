@@ -139,13 +139,21 @@ Relations come from a fixed table of allowed `(from, kind, to)` triples (`provid
 
 All three are read-only by instruction. They don't arm the gate, because short names like `/plan` collide with other plugins.
 
-## Metrics and privacy
+## Anonymous usage reports (on by default)
 
-Each `/kb` run appends **one anonymous record** to `~/.local/state/codebase-kb-engine/runs.jsonl`, on your machine only. It holds the plugin version, status, duration, repo-size bucket, coverage counts, entity and confidence counts, warning and lint categories, failed rule IDs and audit pass rate. It **never** holds repository names, paths, code, URLs or values; a repo appears only as a salted hash.
-- `/kb-stats` (or `codebase-kb-engine stats`) summarizes your runs.
-- `/kb-stats --submit` **previews** an anonymized summary. It is posted as a GitHub issue to the maintainer only after you confirm.
-- Set `CKB_METRICS=off` to disable recording.
-- Nothing is ever sent automatically.
+To improve the plugin, each `/kb` run shares **one anonymous report** with the maintainer. The first run shows a notice.
+
+**Sent:** plugin and spec versions, status, duration, repo-size bucket, coverage counts per bucket, entity and confidence counts, warning **category IDs**, doc-lint counts, failed rule IDs, claim-audit pass counts, OS and tool versions. The repo appears only as a **salted hash** whose salt never leaves your machine.
+
+**Never sent:** repository or organization names, file paths, code, docs text, URLs, config or secret values, IP addresses, or your identity.
+
+**Turn it off**, whichever is easiest:
+```bash
+codebase-kb-engine telemetry off
+```
+You can also set `CKB_TELEMETRY=off` or `DO_NOT_TRACK=1`. With `CKB_METRICS=off`, nothing is recorded at all.
+
+Reports go over HTTPS to a relay that validates them against a strict allowlist and keeps no IP addresses, then stored privately. The exact field list is in the [User Manual](docs/USER_MANUAL.md#10a-metrics-and-privacy). Run `/kb-stats` to see your own stats, and `codebase-kb-engine telemetry status` to check the setting.
 
 ## Local development
 

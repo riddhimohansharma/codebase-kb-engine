@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.9.1] — 2026-10-01
+- Anonymous usage reports, on by default with a first-run notice; opt out with `telemetry off`, `CKB_TELEMETRY=off` or `DO_NOT_TRACK=1`.
+- Warning categories reported as fixed IDs only.
+
 ## [0.9.0] — 2026-10-01
 - Anonymous local run metrics; `/kb-stats` summary with opt-in, confirmed report submission.
 - Maintainer tools: `tools/bench.sh` (pinned polyglot suite, route accuracy) and `tools/adoption.sh`.

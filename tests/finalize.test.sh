@@ -3,7 +3,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 T="$(mktemp -d)"; T="$(cd "$T" && pwd -P)"; trap 'chmod -R u+w "$T" 2>/dev/null; rm -rf "$T"' EXIT
-unset KB_DIR CKB_METRICS; export CKB_STATE_DIR="$T/state"; : > "$T/r"
+unset KB_DIR CKB_METRICS CKB_TELEMETRY DO_NOT_TRACK; export CKB_STATE_DIR="$T/state"; : > "$T/r"
 ok(){ if eval "$2"; then echo P >> "$T/r"; echo "PASS $1"; else echo F >> "$T/r"; echo "FAIL $1"
       [ -f "$T/r.dumped" ] || { : > "$T/r.dumped"; echo "  --- finalize output:"; sed 's/^/  | /' "$T/out" 2>/dev/null | tail -25; }; fi; }
 G(){ git -C "$1" -c user.email=t@t -c user.name=t "${@:2}"; }
@@ -107,9 +107,37 @@ n0="$(wc -l < "$RUNS" | tr -d " ")"; cp "$PD" "$PKB/ckb.draft.json"; CKB_METRICS
 ok "metrics: CKB_METRICS=off records nothing"        '[ "$(wc -l < "$RUNS" | tr -d " ")" = "$n0" ]'
 "$ROOT/scripts/stats.sh" --json > "$T/stats.json"
 ok "stats: summary counts runs and statuses"         'jq -e ".runs >= 3 and (.status | length) >= 1 and .repos >= 2" "$T/stats.json" >/dev/null'
-ok "stats: human summary renders"                    '"$ROOT/scripts/stats.sh" | grep -q "local run stats"'
+"$ROOT/scripts/stats.sh" > "$T/stats.txt" 2>&1
+ok "stats: human summary renders"                    'grep -q "local run stats" "$T/stats.txt" && grep -q "^telemetry:" "$T/stats.txt"'
 "$ROOT/scripts/stats.sh" --submit > "$T/sub" 2>&1
 ok "stats: --submit without --yes only previews"     'grep -q "PREVIEW ONLY" "$T/sub" || grep -q "GitHub CLI) is required" "$T/sub"'
+
+# telemetry: on by default with notice; opt-outs honoured; payload is the anonymous record and passes the relay's validator
+FK="$T/fakebin"; mkdir -p "$FK"; cat > "$FK/curl" <<'FAKE'
+#!/usr/bin/env bash
+for a in "$@"; do case "$a" in @*) cat "${a#@}" >> "$CURL_LOG";; esac; done; echo >> "$CURL_LOG"; exit 0
+FAKE
+chmod +x "$FK/curl"; export CURL_LOG="$T/curl.log"; : > "$CURL_LOG"
+tel(){ cp "$PD" "$PKB/ckb.draft.json"; env PATH="$FK:$PATH" CKB_TELEMETRY_SYNC=1 CKB_TELEMETRY_URL="https://relay.test/v1/report" "$@" "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1; }
+rm -f "$T/state/telemetry-notice-shown" "$T/state/telemetry"
+tel
+ok "telemetry: default ON sends one report"           '[ "$(grep -c . "$CURL_LOG")" = 1 ]'
+ok "telemetry: first run prints the notice once"      'grep -q "^TELEMETRY_NOTICE=" "$T/out"'
+tel; ok "telemetry: notice not repeated"              '! grep -q "^TELEMETRY_NOTICE=" "$T/out" && [ "$(grep -c . "$CURL_LOG")" = 2 ]'
+ok "telemetry: payload is anonymous"                  '! grep -qE "/Users/|/private/|https?://|github|acme|poly|DATABASE_URL" "$CURL_LOG"'
+if command -v node >/dev/null && [ -f "$ROOT/../codebase-kb-telemetry/src/index.js" ]; then
+  head -1 "$CURL_LOG" > "$T/rec.json"
+  ok "telemetry: payload passes the relay validator"  'node --input-type=module -e "import {validate} from \"$ROOT/../codebase-kb-telemetry/src/index.js\"; import fs from \"fs\"; const e = validate(JSON.parse(fs.readFileSync(\"$T/rec.json\",\"utf8\"))); if (e.length) { console.error(e); process.exit(1); }"'
+fi
+n="$(grep -c . "$CURL_LOG")"
+tel DO_NOT_TRACK=1;     ok "telemetry: DO_NOT_TRACK=1 sends nothing"       '[ "$(grep -c . "$CURL_LOG")" = "$n" ]'
+tel CKB_TELEMETRY=off;  ok "telemetry: CKB_TELEMETRY=off sends nothing"    '[ "$(grep -c . "$CURL_LOG")" = "$n" ]'
+"$ROOT/scripts/telemetry.sh" off >/dev/null; tel; ok "telemetry: saved off sends nothing" '[ "$(grep -c . "$CURL_LOG")" = "$n" ]'
+"$ROOT/scripts/telemetry.sh" on >/dev/null
+cp "$PD" "$PKB/ckb.draft.json"; env PATH="$FK:$PATH" CKB_TELEMETRY_SYNC=1 CKB_TELEMETRY_URL= "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1
+ok "telemetry: no endpoint configured sends nothing"  '[ "$(grep -c . "$CURL_LOG")" = "$n" ]'
+cp "$PD" "$PKB/ckb.draft.json"; env PATH="$FK:$PATH" CKB_TELEMETRY_SYNC=1 CKB_TELEMETRY_URL="http://insecure.test/x" "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1
+ok "telemetry: plain http endpoint refused"           '[ "$(grep -c . "$CURL_LOG")" = "$n" ]'
 
 # ===================== 3. failure paths =====================
 run_gold(){ mkgold; "$1/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1; }

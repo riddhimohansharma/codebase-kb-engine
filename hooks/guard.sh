@@ -28,7 +28,7 @@ fi
 [ -z "$sid" ] && sid="$(rawget session_id)"; [ -z "$tool" ] && tool="$(rawget tool_name)"; [ -z "$cwd" ] && cwd="$(rawget cwd)"
 sid="$(printf '%s' "${sid:-}" | tr -cd 'A-Za-z0-9_-')"; [ -z "${cwd:-}" ] && cwd="$PWD"
 
-SCRIPTS='resolve-kb.sh|clone.sh|finalize.sh|validate.sh|freshness.sh|inventory.sh|coverage.sh|lint-docs.sh|reference.sh|docmeta.sh|kbq.sh|stats.sh'
+SCRIPTS='resolve-kb.sh|clone.sh|finalize.sh|validate.sh|freshness.sh|inventory.sh|coverage.sh|lint-docs.sh|reference.sh|docmeta.sh|kbq.sh|stats.sh|telemetry.sh'
 is_plugin_script(){ # $1 = command head; true only for this plugin's own scripts, by real path
   local d b
   case "$1" in */scripts/*) ;; *) return 1 ;; esac

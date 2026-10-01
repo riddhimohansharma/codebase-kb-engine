@@ -209,6 +209,25 @@ if [ "${CKB_METRICS:-on}" != off ]; then
        --arg audit "$audit" --arg day "$(date -u +%Y-%m-%d)" --slurpfile m "$kb/manifest.json" '
       ($m[0]) as $mf
       | def bucket(n): if n < 100 then "<100" elif n < 1000 then "100-999" elif n < 10000 then "1k-9.9k" else "10k+" end;
+      def wkind: # fixed vocabulary: free text from warnings never leaves the machine
+          if startswith("downgraded") then "downgraded_unverifiable_citation"
+          elif startswith("dropped malformed relation") then "relation_malformed"
+          elif startswith("dropped relation with unknown kind") then "relation_unknown_kind"
+          elif startswith("dropped relation with unresolved") then "relation_unresolved"
+          elif startswith("dropped relation not allowed") then "relation_not_allowed"
+          elif startswith("dropped unresolved applies_to") then "ref_unresolved_applies_to"
+          elif startswith("dropped unresolved workflow") then "ref_unresolved_step"
+          elif startswith("local id") then "local_id_ambiguous"
+          elif startswith("config key") then "config_value_dropped"
+          elif startswith("citation in generated") then "citation_generated_code"
+          elif test("^unrecognised [a-z_]+ [a-z_]+ ") then "enum_unrecognised:" + (capture("^unrecognised (?<c>[a-z_]+) (?<f>[a-z_]+) ") | "\(.c).\(.f)")
+          elif startswith("dependency without a known ecosystem") then "purl_generic"
+          elif startswith("dropped external service") then "external_no_hostname"
+          elif startswith("datastore") then "instance_key_dsn_dropped"
+          elif startswith("coverage: manifest") then "coverage_manifest_uncited"
+          elif startswith("redacted") then "secret_redacted"
+          elif startswith("detached HEAD") then "detached_head"
+          else "other" end;
       {schema: 1, day: $day, plugin_version: $ver, ckb_version: $mf.ckb_version, mode: $mode, status: $status, repo: $rid,
        duration_s: $dur, os: $os, jq: $jqv, uv: ($uv == "yes"),
        size: bucket(($mf.coverage.files_total // 0)),
@@ -217,9 +236,14 @@ if [ "${CKB_METRICS:-on}" != off ]; then
        validation: {structural: $mf.validation.structural, semantic: $mf.validation.semantic,
                     rules_failed: ([$mf.validation.messages[]? | capture("(?<r>R[0-9]+)")?.r] | unique)},
        docs_violations: (($mf.validation.docs // {}) | map_values(length)),
-       warnings: ([$mf.warnings[]? | sub(": .*$"; "") | sub(" \\(.*$"; "") | sub(" \u0027.*$"; "")] | group_by(.) | map({key: .[0], value: length}) | from_entries),
+       warnings: ([$mf.warnings[]? | wkind] | group_by(.) | map({key: .[0], value: length}) | from_entries),
        audit: (if ($audit | test("^[0-9]+/[0-9]+$")) then ($audit | split("/") | {supported: (.[0] | tonumber), total: (.[1] | tonumber)}) else null end)}' \
-       >> "$sdir/runs.jsonl" 2>/dev/null || true
+       >> "$sdir/runs.jsonl" 2>"$tmpd/metrics.err" || echo "  note: run metrics not recorded ($(head -c 200 "$tmpd/metrics.err"))" >&2
+    # anonymous report to the maintainer (on by default; DO_NOT_TRACK / CKB_TELEMETRY=off / `telemetry off` disable it)
+    rec_f="$(mktemp)"; tail -1 "$sdir/runs.jsonl" > "$rec_f" 2>/dev/null
+    telemetry_notice="$("$ROOT/scripts/telemetry.sh" notice 2>/dev/null)"
+    "$ROOT/scripts/telemetry.sh" send "$rec_f" 2>/dev/null || true
+    [ "${CKB_TELEMETRY_SYNC:-}" = 1 ] && rm -f "$rec_f"
   fi
 fi
 
@@ -229,5 +253,6 @@ printf '%s\n' "$vout"
 [ -n "$cov_uncited_manifests" ] && printf '  coverage: manifest not cited: %s\n' $cov_uncited_manifests | head -20
 if [ "$status" = complete ]; then rm -f "$draft"; rm -rf "$kb/ckb.draft.d"; fi
 [ "$status" = complete ] && [ "$mode" = local ] && printf 'COMMIT_HINT=git add ckb && git commit -m "docs(ckb): knowledge base for %s"\n' "$(printf '%s' "$sha" | cut -c1-7)"
+[ -n "${telemetry_notice:-}" ] && printf '%s\n' "$telemetry_notice"
 printf 'STATUS=%s KB_DIR=%s JOB_ID=%s WARNINGS=%s%s\n' "$status" "$kb" "$job_id" "$(jq '.warnings | length' "$kb/manifest.json")" "${missing:+ MISSING=$(echo $missing | tr ' ' ',')}"
 [ "$status" = complete ]

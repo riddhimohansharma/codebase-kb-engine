@@ -277,18 +277,29 @@ A blocked action returns a message starting `BLOCKED by codebase-kb-engine read-
 
 ## 10a. Metrics and privacy
 
-**Recording.** Every run appends one anonymous record to `$CKB_STATE_DIR/runs.jsonl` (default `~/.local/state/codebase-kb-engine/`). It contains:
-- version, status, duration and repo-size bucket;
-- coverage found and cited per bucket;
-- entity and confidence counts;
-- warning categories, doc-lint categories, failed rule IDs and audit pass rate.
+**Local record.** Every run appends one anonymous record to `$CKB_STATE_DIR/runs.jsonl` (default `~/.local/state/codebase-kb-engine/`). `/kb-stats [--last N] [--json]` summarizes these records.
 
-It never contains names, paths, code, URLs or values, and a repo is a salted hash.
+**Anonymous report: on by default.** The same record is sent to the maintainer after each run: in the background, over HTTPS, with a 3-second timeout, so it never slows or fails a run. A one-time notice appears on the first run.
 
-**Using it:**
-- `/kb-stats [--last N] [--json]` summarizes your runs.
-- `/kb-stats --submit` previews an anonymized report and sends it only after you confirm (it runs `stats.sh --submit --yes`). The report becomes a GitHub issue on the plugin repo, and it requires `gh`.
-- `CKB_METRICS=off` disables recording.
+| Sent | Never sent |
+|---|---|
+| plugin and CKB versions, mode, status, day | repository or organization names, URLs |
+| duration, repo-size bucket (`<100` … `10k+`) | file paths, code, doc text |
+| coverage found and cited per fixed bucket | config or secret values |
+| entity and relation counts, confidence counts | IP address, user agent, identity |
+| failed rule IDs, doc-lint counts per file name | free-text warnings (only fixed category IDs) |
+| warning category IDs (e.g. `relation_not_allowed`) | |
+| claim-audit pass counts; OS, jq and uv presence | |
+| `repo`: a salted 12-character hash (the salt stays on your machine) | |
+
+**Opting out:**
+- `codebase-kb-engine telemetry off` (saved for this machine; `telemetry on` re-enables it);
+- `CKB_TELEMETRY=off`, or `DO_NOT_TRACK=1`;
+- `CKB_METRICS=off`, which disables both the local record and the report.
+
+`codebase-kb-engine telemetry status` shows the current state.
+
+**Manual share:** `/kb-stats --submit` previews an aggregated summary. It's posted as a GitHub issue under your own account only after you confirm.
 
 ## 11. Configuration
 
@@ -297,7 +308,8 @@ It never contains names, paths, code, URLs or values, and a repo is a salted has
 | `KB_DIR` | URL mode only | Output directory. It must be outside any git work tree and outside the clone sandbox. It is ignored in local mode, which always uses `ckb/` |
 | `CKB_CLONE_BASE` | URL mode | Sandbox for clones (default `$TMPDIR/ckb-clones`) |
 | `CKB_ENFORCE=always` | Gate | Arm for the whole session (the local wrappers set this) |
-| `CKB_METRICS=off` | Metrics | Disable local run metrics |
+| `CKB_METRICS=off` | Metrics | Disable local run metrics and reports |
+| `CKB_TELEMETRY=off` / `DO_NOT_TRACK=1` | Telemetry | Disable the anonymous report |
 | `CKB_STATE_DIR` | Metrics | Where run metrics are stored (default `~/.local/state/codebase-kb-engine`) |
 | `CLAUDE_PLUGIN_DATA` | Gate | Where arm state is kept (set by Claude Code) |
 
