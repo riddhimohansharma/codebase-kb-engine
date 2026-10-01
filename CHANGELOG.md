@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.9.0] — 2026-10-01
+- Anonymous local run metrics; `/kb-stats` summary with opt-in, confirmed report submission.
+- Maintainer tools: `tools/bench.sh` (pinned polyglot suite, route accuracy) and `tools/adoption.sh`.
+
 ## [0.8.2] — 2026-10-01
 - CLI wrapper renamed from `repokb` to `codebase-kb-engine`.
 

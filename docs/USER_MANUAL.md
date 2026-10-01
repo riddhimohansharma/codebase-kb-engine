@@ -275,6 +275,21 @@ The freshness check is what keeps this cheap at scale: unchanged repos cost one 
 
 A blocked action returns a message starting `BLOCKED by codebase-kb-engine read-only mode:` that explains why.
 
+## 10a. Metrics and privacy
+
+**Recording.** Every run appends one anonymous record to `$CKB_STATE_DIR/runs.jsonl` (default `~/.local/state/codebase-kb-engine/`). It contains:
+- version, status, duration and repo-size bucket;
+- coverage found and cited per bucket;
+- entity and confidence counts;
+- warning categories, doc-lint categories, failed rule IDs and audit pass rate.
+
+It never contains names, paths, code, URLs or values, and a repo is a salted hash.
+
+**Using it:**
+- `/kb-stats [--last N] [--json]` summarizes your runs.
+- `/kb-stats --submit` previews an anonymized report and sends it only after you confirm (it runs `stats.sh --submit --yes`). The report becomes a GitHub issue on the plugin repo, and it requires `gh`.
+- `CKB_METRICS=off` disables recording.
+
 ## 11. Configuration
 
 | Variable | Used by | Effect |
@@ -282,6 +297,8 @@ A blocked action returns a message starting `BLOCKED by codebase-kb-engine read-
 | `KB_DIR` | URL mode only | Output directory. It must be outside any git work tree and outside the clone sandbox. It is ignored in local mode, which always uses `ckb/` |
 | `CKB_CLONE_BASE` | URL mode | Sandbox for clones (default `$TMPDIR/ckb-clones`) |
 | `CKB_ENFORCE=always` | Gate | Arm for the whole session (the local wrappers set this) |
+| `CKB_METRICS=off` | Metrics | Disable local run metrics |
+| `CKB_STATE_DIR` | Metrics | Where run metrics are stored (default `~/.local/state/codebase-kb-engine`) |
 | `CLAUDE_PLUGIN_DATA` | Gate | Where arm state is kept (set by Claude Code) |
 
 ## 12. Troubleshooting

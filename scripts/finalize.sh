@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # finalize.sh — build ckb.json + manifest.json from the model-written draft, then validate.
-# Usage: finalize.sh <repo_root> <kb_dir> [--mode local|url] [--url URL] [--branch BRANCH] [--started-at ISO]
+# Usage: finalize.sh <repo_root> <kb_dir> [--mode local|url] [--url URL] [--branch BRANCH] [--started-at ISO] [--audit S/T]
 # Reads <kb_dir>/ckb.draft.json; writes <kb_dir>/ckb.json and <kb_dir>/manifest.json; removes the draft on success.
 # Exit: 0 complete · 1 invalid/incomplete/unverified (draft kept; a previous valid ckb.json is never overwritten by an invalid one) · 2 usage/precondition.
 # Status: complete only when BOTH schema (uvx) and semantic checks pass; schema skipped => unverified.
@@ -9,10 +9,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 DOCS="00-overview.md 01-technical-architecture.md 02-functional-workflows.md 03-business-rules.md 04-system-context-and-gaps.md 05-operations.md 06-security-and-data.md 07-decisions.md"
 die(){ code="$1"; shift; printf '%s\n' "$@" >&2; exit "$code"; }
 repo="${1:-}"; kb="${2:-}"; shift 2 2>/dev/null || die 2 "usage: finalize.sh <repo_root> <kb_dir> [opts]"
-mode=local; url=""; branch=""; started=""
+mode=local; url=""; branch=""; started=""; audit=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --mode) mode="$2"; shift ;; --url) url="$2"; shift ;; --branch) branch="$2"; shift ;; --started-at) started="$2"; shift ;;
+    --audit) audit="$2"; shift ;;   # "<supported>/<total>" from the claim audit
     *) die 2 "unknown option: $1" ;;
   esac; shift
 done
@@ -193,6 +194,34 @@ jq -r --arg status "$status" '
   (if .coverage then "Coverage: " + ([.coverage.buckets | to_entries[] | select(.value.found > 0) | "\(.key) \(.value.cited)/\(.value.found)"] | join(" · ")) + ".\n" else "" end),
   "**Freshness:** this KB is current while nothing outside `ckb/` has changed since the source commit (`git diff --quiet \(.repo.commit_sha[0:12]) HEAD -- . \u0027:(exclude)ckb\u0027`). Regenerate with `/kb`."
 ' "$kb/ckb.json" > "$kb/README.md" 2>/dev/null || true
+
+# Anonymous local run metrics (performance and quality stats; never paths, names, code, URLs or values).
+# Stored in $CKB_STATE_DIR (default ~/.local/state/codebase-kb-engine/runs.jsonl). Disable with CKB_METRICS=off.
+if [ "${CKB_METRICS:-on}" != off ]; then
+  sdir="${CKB_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/codebase-kb-engine}"
+  if mkdir -p "$sdir" 2>/dev/null; then
+    [ -s "$sdir/salt" ] || { LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom 2>/dev/null | head -c 32 > "$sdir/salt"; chmod 600 "$sdir/salt" 2>/dev/null; }
+    rid="$(printf '%s|%s' "$(cat "$sdir/salt" 2>/dev/null)" "$url" | shasum -a 256 | cut -c1-12)"
+    t0="$(date -j -u -f %Y-%m-%dT%H:%M:%SZ "${started:-$now}" +%s 2>/dev/null || date -u -d "${started:-$now}" +%s 2>/dev/null || echo 0)"
+    t1="$(date -u +%s)"; dur=$(( t0 > 0 ? t1 - t0 : -1 ))
+    jq -c -n --arg ver "$gen_ver" --arg mode "$mode" --arg status "$status" --arg rid "$rid" --argjson dur "$dur" \
+       --arg os "$(uname -s | tr 'A-Z' 'a-z')" --arg jqv "$(jq --version 2>/dev/null)" --arg uv "$(command -v uvx >/dev/null && echo yes || echo no)" \
+       --arg audit "$audit" --arg day "$(date -u +%Y-%m-%d)" --slurpfile m "$kb/manifest.json" '
+      ($m[0]) as $mf
+      | def bucket(n): if n < 100 then "<100" elif n < 1000 then "100-999" elif n < 10000 then "1k-9.9k" else "10k+" end;
+      {schema: 1, day: $day, plugin_version: $ver, ckb_version: $mf.ckb_version, mode: $mode, status: $status, repo: $rid,
+       duration_s: $dur, os: $os, jq: $jqv, uv: ($uv == "yes"),
+       size: bucket(($mf.coverage.files_total // 0)),
+       coverage: (($mf.coverage.buckets // {}) | map_values({found, cited})),
+       entities: ($mf.entity_counts // {}), confidence: ($mf.confidence_summary // {}),
+       validation: {structural: $mf.validation.structural, semantic: $mf.validation.semantic,
+                    rules_failed: ([$mf.validation.messages[]? | capture("(?<r>R[0-9]+)")?.r] | unique)},
+       docs_violations: (($mf.validation.docs // {}) | map_values(length)),
+       warnings: ([$mf.warnings[]? | sub(": .*$"; "") | sub(" \\(.*$"; "") | sub(" \u0027.*$"; "")] | group_by(.) | map({key: .[0], value: length}) | from_entries),
+       audit: (if ($audit | test("^[0-9]+/[0-9]+$")) then ($audit | split("/") | {supported: (.[0] | tonumber), total: (.[1] | tonumber)}) else null end)}' \
+       >> "$sdir/runs.jsonl" 2>/dev/null || true
+  fi
+fi
 
 printf '%s\n' "$vout"
 [ -n "$docmeta_out" ] && printf '%s\n' "$docmeta_out" | tail -1

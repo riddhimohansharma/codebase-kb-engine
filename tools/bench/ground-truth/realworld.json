@@ -1,0 +1,13 @@
+{
+  "name": "RealWorld (Conduit) API",
+  "source": "https://realworld-docs.netlify.app/specifications/backend/endpoints/",
+  "note": "Paths compared with every {param} collapsed to {} and an optional leading /api stripped.",
+  "http_provides": [
+    "POST /api/users/login", "POST /api/users", "GET /api/user", "PUT /api/user",
+    "GET /api/profiles/{username}", "POST /api/profiles/{username}/follow", "DELETE /api/profiles/{username}/follow",
+    "GET /api/articles", "GET /api/articles/feed", "GET /api/articles/{slug}", "POST /api/articles",
+    "PUT /api/articles/{slug}", "DELETE /api/articles/{slug}",
+    "POST /api/articles/{slug}/comments", "GET /api/articles/{slug}/comments", "DELETE /api/articles/{slug}/comments/{id}",
+    "POST /api/articles/{slug}/favorite", "DELETE /api/articles/{slug}/favorite", "GET /api/tags"
+  ]
+}

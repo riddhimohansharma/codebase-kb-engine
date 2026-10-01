@@ -3,7 +3,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 T="$(mktemp -d)"; T="$(cd "$T" && pwd -P)"; trap 'chmod -R u+w "$T" 2>/dev/null; rm -rf "$T"' EXIT
-unset KB_DIR; : > "$T/r"
+unset KB_DIR CKB_METRICS; export CKB_STATE_DIR="$T/state"; : > "$T/r"
 ok(){ if eval "$2"; then echo P >> "$T/r"; echo "PASS $1"; else echo F >> "$T/r"; echo "FAIL $1"
       [ -f "$T/r.dumped" ] || { : > "$T/r.dumped"; echo "  --- finalize output:"; sed 's/^/  | /' "$T/out" 2>/dev/null | tail -25; }; fi; }
 G(){ git -C "$1" -c user.email=t@t -c user.name=t "${@:2}"; }
@@ -96,6 +96,20 @@ ok "feedback: next_run_focus + recurring recorded"    'jq -e ".feedback.next_run
 cp "$PD" "$PKB/ckb.draft.json"; "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1
 ok "feedback: recurrence counted on second run"       'jq -e "[.feedback.recurring[] | select(.runs >= 2)] | length > 0" "$PM" >/dev/null'
 ok "feedback: improvement candidate surfaced"         'jq -e "[.feedback.improve_candidates[] | select(test(\"not allowed by the spec\"))] | length == 1" "$PM" >/dev/null'
+
+# anonymous local run metrics + stats
+RUNS="$T/state/runs.jsonl"
+ok "metrics: one record per finalize run"            '[ -s "$RUNS" ] && [ "$(wc -l < "$RUNS" | tr -d " ")" -ge 3 ]'
+ok "metrics: record is anonymous (no paths/urls/names)" '! grep -qE "/Users/|/private/|/tmp/|https?://|github\.com|shop|acme|poly" "$RUNS"'
+ok "metrics: repo is a salted 12-hex hash"           'tail -1 "$RUNS" | jq -e ".repo | test(\"^[0-9a-f]{12}$\")" >/dev/null'
+ok "metrics: carries status, coverage, entities"     'tail -1 "$RUNS" | jq -e "has(\"status\") and has(\"coverage\") and has(\"entities\") and has(\"duration_s\")" >/dev/null'
+n0="$(wc -l < "$RUNS" | tr -d " ")"; cp "$PD" "$PKB/ckb.draft.json"; CKB_METRICS=off "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1
+ok "metrics: CKB_METRICS=off records nothing"        '[ "$(wc -l < "$RUNS" | tr -d " ")" = "$n0" ]'
+"$ROOT/scripts/stats.sh" --json > "$T/stats.json"
+ok "stats: summary counts runs and statuses"         'jq -e ".runs >= 3 and (.status | length) >= 1 and .repos >= 2" "$T/stats.json" >/dev/null'
+ok "stats: human summary renders"                    '"$ROOT/scripts/stats.sh" | grep -q "local run stats"'
+"$ROOT/scripts/stats.sh" --submit > "$T/sub" 2>&1
+ok "stats: --submit without --yes only previews"     'grep -q "PREVIEW ONLY" "$T/sub" || grep -q "GitHub CLI) is required" "$T/sub"'
 
 # ===================== 3. failure paths =====================
 run_gold(){ mkgold; "$1/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1; }

@@ -139,14 +139,24 @@ Relations come from a fixed table of allowed `(from, kind, to)` triples (`provid
 
 All three are read-only by instruction. They don't arm the gate, because short names like `/plan` collide with other plugins.
 
+## Metrics and privacy
+
+Each `/kb` run appends **one anonymous record** to `~/.local/state/codebase-kb-engine/runs.jsonl`, on your machine only. It holds the plugin version, status, duration, repo-size bucket, coverage counts, entity and confidence counts, warning and lint categories, failed rule IDs and audit pass rate. It **never** holds repository names, paths, code, URLs or values; a repo appears only as a salted hash.
+- `/kb-stats` (or `codebase-kb-engine stats`) summarizes your runs.
+- `/kb-stats --submit` **previews** an anonymized summary. It is posted as a GitHub issue to the maintainer only after you confirm.
+- Set `CKB_METRICS=off` to disable recording.
+- Nothing is ever sent automatically.
+
 ## Local development
 
 ```bash
 git clone https://github.com/riddhimohansharma/codebase-kb-engine && cd codebase-kb-engine
 tests/guard.test.sh       # 125 safety checks (gate, bypass regressions, arming scope, resolver, clone sandbox)
-tests/finalize.test.sh    # 71 conformance checks: golden end-to-end KB, polyglot normalization, failure paths, freshness
+tests/finalize.test.sh    # 83 conformance checks: golden end-to-end KB, polyglot normalization, failure paths, freshness
 tests/docs.test.sh        # 98 doc-quality checks: lint rules, parity, front-matter, reference
 tests/inventory.test.sh   # 50 recon checks: polyglot inventory, exclusions, workspaces, coverage
+tools/bench.sh --dry-run  # maintainer benchmark: pinned polyglot suite, cost, coverage, route accuracy
+tools/adoption.sh         # maintainer: daily adoption snapshot from GitHub signals
 claude plugin validate .  # manifest checks
 tools/sync-spec.sh --check # vendored spec matches codebase-kb-spec (pin in spec/v0.1/SOURCE)
 claude --plugin-dir .     # load without installing

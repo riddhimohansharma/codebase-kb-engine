@@ -47,7 +47,7 @@ Give each scout the absolute root, its path scope, its slice of the inventory, a
 
 **8. Claim audit.** Run `kbq.sh claims <KB_DIR> 15` and give its JSON to the `auditor` subagent. For every verdict that isn't `supported`, ask the owning scout scope's fragment to be corrected: downgrade to `inferred`, or fix the line. A one-line Edit to that fragment is fine.
 
-**9. Finalize.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/finalize.sh" "<REPO_ROOT>" "<KB_DIR>" --started-at "<start>"`. In URL mode, add `--mode url --url "<REPO_URL>" --branch "<BRANCH>"`. It does the following:
+**9. Finalize.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/finalize.sh" "<REPO_ROOT>" "<KB_DIR>" --started-at "<start>" --audit "<supported>/<audited>"` (the step 8 audit counts). In URL mode, add `--mode url --url "<REPO_URL>" --branch "<BRANCH>"`. It does the following:
 - merges `ckb.draft.d/`, inventories the repo and computes coverage;
 - derives IDs and normalizes everything;
 - lints the docs, checks that the docs and the JSON agree, injects doc front-matter, rewrites local ids to final ids in the docs, and generates `90-reference.md`;
