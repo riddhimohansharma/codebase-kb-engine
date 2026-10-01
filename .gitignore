@@ -2,6 +2,7 @@
 *.zip
 *.bak
 *-kb/
+*-ckb/
 .env
 # local planning docs — never published
 ckb-implementation-plan.md

@@ -2,7 +2,7 @@
 # Open an interactive read-only session (codebase-kb-engine) on any repo. SELF-LOCATING: resolves its own
 # folder (even through symlinks / from PATH), so there are no hardcoded paths.
 # Usage: /path/to/codebase-kb-engine/run.sh <repo-path> [extra claude args...]
-#   Override KB output location: KB_DIR=/some/path run.sh <repo-path>
+#   KB output: <repo>/.ckb (the CKB standard location; commit it)
 set -euo pipefail
 
 # resolve this script's real directory, following symlinks (BSD/macOS safe)
@@ -18,7 +18,6 @@ REPO="${1:?usage: run.sh <repo-path> [claude args...]}"; shift || true
 REPO="$(cd "$REPO" && pwd)"
 command -v claude >/dev/null 2>&1 || { echo "claude not found in PATH" >&2; exit 1; }
 
-# KB output defaults to a sibling of the target repo; fully derived, never hardcoded
 out="$("$ENGINE/scripts/resolve-kb.sh" "$REPO")" || exit $?     # refuses KB inside repo; creates .ckb-output marker
 KB_DIR="$(printf '%s\n' "$out" | sed -n 's/^KB_DIR=//p')"; export KB_DIR
 { echo "engine : $ENGINE"

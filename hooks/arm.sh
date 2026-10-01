@@ -23,7 +23,7 @@ case "$event" in
     fi
     if printf '%s' "$prompt" | grep -qE '^[[:space:]]*/(codebase-kb-engine:)?(kb|kb-validate|map|hunt|plan)([[:space:]]|$)'; then
       : > "$STATE/$sid"
-      echo "[codebase-kb-engine] Read-only mode ON for this session: the repo cannot be modified; writes are allowed only inside a CKB output dir (marked .ckb-output). The user can type /kb-unlock to release."
+      echo "[codebase-kb-engine] Read-only mode ON for this session: the repo cannot be modified; writes are allowed only inside <repo>/.ckb/ (the knowledge base). The user can type /kb-unlock to release."
     fi ;;
 esac
 exit 0

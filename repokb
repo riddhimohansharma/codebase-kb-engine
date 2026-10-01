@@ -40,7 +40,7 @@ COMMANDS
 GLOBAL OPTIONS
   --json         Machine-readable output (--output-format json) for headless commands
   --dry-run      Print the claude command instead of running it
-  --kb-dir DIR   KB output dir (else $KB_DIR, else <repo>-kb sibling)
+  --kb-dir DIR   URL mode only: output dir (local mode always writes <repo>/.ckb)
 
 ENV  KB_DIR · REPOKB_MODEL (model) · REPOKB_MAX_TURNS
 SAFETY  wrapper sessions run with CKB_ENFORCE=always: the repo is read-only; writes go only to the marked KB dir.
@@ -48,7 +48,7 @@ SAFETY  wrapper sessions run with CKB_ENFORCE=always: the repo is read-only; wri
 EXAMPLES
   repokb doctor
   repokb run  ~/code/myapp                 # interactive
-  repokb kb   ~/code/myapp                  # KB -> ~/code/myapp-kb
+  repokb kb   ~/code/myapp                  # KB -> ~/code/myapp/.ckb (commit it)
   repokb kb   ~/code/myapp billing --json   # focused, JSON output
   repokb kb   ~/code/myapp --dry-run        # preview the exact command
 HELPDOC

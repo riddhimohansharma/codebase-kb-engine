@@ -2,6 +2,32 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/). The plugin `name` `codebase-kb-engine` is permanent.
 
+## [0.6.0] — 2026-09-30
+
+### Changed
+- **The KB now lives in the repo at `<repo-root>/.ckb/`** and is committed with the code. This is the CKB spec's canonical location. The old sibling `../<repo>-kb/` directory and the `KB_DIR` override for local mode are gone. `KB_DIR` now applies only to URL mode, whose default output is `<name>-ckb/`.
+- The guard allows writes inside a git work tree only at exactly `<work-tree>/.ckb`. Nested `.ckb` dirs, look-alike names, forged markers elsewhere, and symlinked `.ckb` dirs are all refused.
+- The marker file is static, so there are no paths or timestamps to commit. Local mode no longer needs `--add-dir`.
+- The vendored spec is now `ckb-spec@6ac5404`: in-repo location, freshness rule, and rule R7.
+
+### Added
+- `scripts/freshness.sh`, implementing the spec's rule: fresh at `Y` if and only if nothing outside `.ckb/` changed since `commit_sha`. `/kb` skips when the KB is fresh; `/kb --force` overrides. `/kb-validate` reports freshness.
+- R7 enforcement: analysis ignores `.ckb/`, and citations or components inside `.ckb/` are dropped.
+- `.ckb/README.md`, a deterministic index, and `.ckb/.gitattributes` (`linguist-generated`).
+- A `COMMIT_HINT` at the end of a run. The producer never commits.
+- **Citation verification**: every `path:line` is checked against the real file (tracked or untracked-but-not-ignored, outside `.ckb/`) and its line count. Absolute paths under the repo root are made relative. Claims that don't verify are downgraded to `unknown`.
+- **Secret redaction**: secret values from the repo's env, key and config files that appear in the KB are replaced with `[REDACTED]` and recorded in the warnings. The skills also tell the model to cite secrets by name and location only.
+- **Robust normalization**: enum synonyms are coerced (`postgresql`, `devDependencies`, `rw`, `app.all`, `graphql`, …). Package keys are inferred from the manifest file and stripped of versions and extras. Absolute URLs, host placeholders, literal ids and wildcards in HTTP paths are normalized. SQL schema and table names are lowercased. Missing `symbol`, `topic` and rpc fields get defaults. Empty workflows get a placeholder step. Ambiguous local ids and unresolved references are dropped with warnings, and unknown relation kinds are dropped.
+- New status `unverified`: nothing is marked `complete` unless the schema check actually ran.
+- **An invalid candidate never replaces a good `ckb.json`.** It is kept as `ckb.json.rejected`.
+- Freshness is stricter: uncommitted source edits and a non-complete last run both force regeneration, and shallow clones are reported with a fix.
+- `repo.branch` on a detached HEAD falls back to CI ref variables, then the tag, then `name-rev`.
+- Docs: full [User Manual](docs/USER_MANUAL.md). Headless runs use `/codebase-kb-engine:kb`, because the short `/kb` sometimes isn't expanded in `-p` mode.
+- Tests: guard 81, finalize 51.
+
+### Verified
+- Live run on a real 63-file Node.js service: status `complete`, schema and semantic checks pass, 109 claims (108 confirmed), and all 73 cited `path:line` locations resolve. No secret values appear in the KB, and the source tree is unchanged (only `.ckb/` was added; nothing was committed).
+
 ## [0.5.0] — 2026-09-30
 
 ### Added

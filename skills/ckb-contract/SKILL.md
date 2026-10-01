@@ -27,7 +27,7 @@ You write `ckb.draft.json`; `scripts/finalize.sh` turns it into the conforming `
   "relations": [{"from","to","kind","confidence","provenance"}]
 }
 ```
-`provenance` = `[{"path": "<repo-relative>", "line": N, "end_line?": M}]`. Paths are relative to the repo root, with no leading `/` and no `..`.
+`provenance` = `[{"path": "<repo-relative>", "line": N, "end_line?": M}]`. Paths are relative to the repo root, with no leading `/` and no `..`. **Never cite `.ckb/`**: the KB must not describe itself (spec R7; the script drops such citations).
 
 ## Enums (anything else fails validation)
 - component.kind: `service library module cli ui job other`
@@ -53,5 +53,7 @@ You write `ckb.draft.json`; `scripts/finalize.sh` turns it into the conforming `
 - `confirmed`: the cited line states it directly (a route decorator, a manifest entry, a CREATE TABLE statement).
 - `inferred`: derived from naming or structure. It is plausible but not stated.
 - `unknown`: you looked and could not determine it. Keep the entity so the gap is visible. Provenance may be `[]`.
+
+**Never copy secret values** (passwords, tokens, keys, license keys, connection strings) into the KB. Name the secret and cite where it is defined, for example "New Relic license key hardcoded at `newrelic.js:16`". Finalize also redacts any value it recognises.
 
 Never upgrade confidence to look complete. The artifact exists so a consumer can trust it.

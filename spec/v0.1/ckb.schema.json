@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/riddhimohansharma/ckb-spec/schema/v0.1/ckb.schema.json",
-  "title": "Code Knowledge Base (CKB) artifact",
-  "description": "DRAFT v0.1 — unstable. Breaking changes may occur without notice until 1.0. One artifact describes one repository at one commit.",
+  "title": "Codebase Knowledge Base (CKB) artifact",
+  "description": "DRAFT v0.1 — unstable. Breaking changes may occur without notice until 1.0. One artifact describes one repository at one commit. Canonical location: <repo-root>/.ckb/ckb.json.",
   "type": "object",
   "required": ["ckb_version", "repo", "confidence_summary", "entities"],
   "additionalProperties": false,
@@ -43,7 +43,7 @@
       "properties": {
         "url": { "type": "string", "minLength": 1, "description": "Canonical clone URL, or file:// URL for local-only repos." },
         "branch": { "type": "string", "minLength": 1 },
-        "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$|^[0-9a-f]{64}$", "description": "Full SHA-1 or SHA-256, lowercase." },
+        "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$|^[0-9a-f]{64}$", "description": "The analysed SOURCE commit (full SHA-1 or SHA-256, lowercase). Committing the KB itself does not change it; see the freshness rule." },
         "generated_at": { "type": "string", "format": "date-time" }
       }
     },
@@ -60,7 +60,7 @@
       }
     },
     "repo_path": {
-      "description": "Repo-relative POSIX path. No leading slash, no '..' segments.",
+      "description": "Repo-relative POSIX path. No leading slash, no '..' segments. Must not point into the .ckb/ directory (rule R7).",
       "type": "string",
       "minLength": 1,
       "pattern": "^[^/]",

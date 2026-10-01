@@ -8,6 +8,10 @@ ok(){ if eval "$2"; then echo P >> "$T/r"; echo "PASS $1"; else echo F >> "$T/r"
 REPO="$T/shop"; mkdir -p "$REPO" && git -C "$REPO" init -q -b main && echo x > "$REPO/a.ts"
 git -C "$REPO" add -A && git -C "$REPO" -c user.email=t@t -c user.name=t commit -qm init
 git -C "$REPO" remote add origin "https://user:s3cret@github.com/acme/shop.git"
+# materialize every file the fixture cites (except the deliberately bad ones) so citations verify
+for f in $(jq -r '[.. | objects | select(has("path") and has("line")) | .path] | unique | .[]' "$ROOT/tests/fixtures/messy-draft.json" | sed 's#^\./##' | grep -v '^/'); do
+  mkdir -p "$REPO/$(dirname "$f")"; seq 1 60 > "$REPO/$f"; done
+git -C "$REPO" add -A && git -C "$REPO" -c user.email=t@t -c user.name=t commit -qm fixtures
 KB="$(cd "$T" && "$ROOT/scripts/resolve-kb.sh" "$REPO" | sed -n 's/^KB_DIR=//p')"
 for f in 00-overview 01-technical-architecture 02-functional-workflows 03-business-rules 04-system-context-and-gaps; do echo "# $f" > "$KB/$f.md"; done
 run(){ cp "$ROOT/tests/fixtures/messy-draft.json" "$KB/ckb.draft.json"; "$ROOT/scripts/finalize.sh" "$REPO" "$KB" >"$T/out" 2>&1; }
@@ -39,10 +43,57 @@ ids1="$(q '[.. | .id? // empty] | join(",")')"
 run; ids2="$(jq -r '[.. | .id? // empty] | join(",")' "$A")"
 ok "determinism: re-run on same commit -> identical IDs" '[ "$ids1" = "$ids2" ]'
 ok "determinism: artifact identical except generated_at" '[ "$(jq -c "del(.repo.generated_at)" "$A" | shasum)" = "$(cp "$A" "$T/a1"; run; jq -c "del(.repo.generated_at)" "$A" | shasum)" ]'
-cp "$ROOT/tests/fixtures/messy-draft.json" "$KB/ckb.draft.json"; jq '.entities.components[0].kind = "microservice"' "$KB/ckb.draft.json" > "$T/bad" && mv "$T/bad" "$KB/ckb.draft.json"
-"$ROOT/scripts/finalize.sh" "$REPO" "$KB" >"$T/out" 2>&1; rc=$?
-ok "invalid enum -> exit 1, status=invalid"     '[ $rc -eq 1 ] && [ "$(jq -r .status "$M")" = invalid ] || [ "$(jq -r .validation.structural "$M")" = skipped ]'
-ok "draft kept for repair on failure"           '[ -e "$KB/ckb.draft.json" ]'
+ok "KB is <repo>/.ckb (in-repo standard)"       '[ "$KB" = "$REPO/.ckb" ]'
+ok "README.md index + .gitattributes written"   '[ -s "$KB/README.md" ] && grep -qx "\* linguist-generated=true" "$KB/.gitattributes"'
+ok "README index is deterministic (no timestamps)" '! grep -qE "[0-9]{4}-[0-9]{2}-[0-9]{2}T" "$KB/README.md"'
+ok "writing .ckb does not mark worktree dirty"  '[ "$(jq -r .repo.dirty_worktree "$M")" = false ]'
+ok "commit hint printed, producer did not commit" 'grep -q "^COMMIT_HINT=git add .ckb" "$T/out" && [ "$(git -C "$REPO" rev-list --count HEAD)" = 2 ]'
+F="$ROOT/scripts/freshness.sh"
+ok "freshness: fresh right after generation"    '"$F" "$REPO" >/dev/null'
+git -C "$REPO" add .ckb && git -C "$REPO" -c user.email=t@t -c user.name=t commit -qm kb
+ok "freshness: committing .ckb keeps it fresh"  '"$F" "$REPO" | grep -q "FRESHNESS=fresh"'
+echo y >> "$REPO/a.ts"; git -C "$REPO" -c user.email=t@t -c user.name=t commit -qam src
+ok "freshness: source change -> stale (exit 1)" '"$F" "$REPO" >"$T/f"; [ $? -eq 1 ] && grep -q "FRESHNESS=stale.*1-source-files-changed" "$T/f"'
+jq '.repo.commit_sha = "ffffffffffffffffffffffffffffffffffffffff"' "$A" > "$T/x" && cp "$A" "$T/a.bak" && mv "$T/x" "$A"
+ok "freshness: unknown commit -> unknown (exit 3)" '"$F" "$REPO" >/dev/null; [ $? -eq 3 ]'
+cp "$T/a.bak" "$A"
+ok "freshness: no artifact -> none (exit 4)"    '"$F" "$T" "$T/nokb" >/dev/null; [ $? -eq 4 ]'
+jq '.entities.components += [{"id":"kbc","name":"kb","module_id":".ckb","kind":"other","confidence":"confirmed","provenance":[{"path":".ckb/00-overview.md","line":1}]}] | .entities.dependencies[0].provenance = [{"path":".ckb/ckb.json","line":3}]' "$ROOT/tests/fixtures/messy-draft.json" > "$KB/ckb.draft.json"
+"$ROOT/scripts/finalize.sh" "$REPO" "$KB" >"$T/out" 2>&1
+ok "R7: .ckb component dropped"                 '[ "$(jq "[.entities.components[] | select(.module_id|startswith(\".ckb\"))] | length" "$A")" = 0 ]'
+ok "R7: .ckb citation dropped -> claim unknown" '[ "$(jq -r .entities.dependencies[0].confidence "$A")" = unknown ] && ! grep -q "\"path\": \".ckb" "$A"'
+ok "R7 artifact still validates"                '[ "$(jq -r .status "$M")" = complete ]'
+# invalid path: a plugin copy with an impossible schema requirement must never overwrite the good ckb.json
+run; good="$(shasum < "$A")"
+P="$T/plug"; mkdir -p "$P" && cp -R "$ROOT/." "$P/" 2>/dev/null; rm -rf "$P/.git"
+jq '.required += ["x-impossible"]' "$P/spec/v0.1/ckb.schema.json" > "$T/s" && mv "$T/s" "$P/spec/v0.1/ckb.schema.json"
+cp "$ROOT/tests/fixtures/messy-draft.json" "$KB/ckb.draft.json"
+"$P/scripts/finalize.sh" "$REPO" "$KB" >"$T/out" 2>&1; rc=$?
+if command -v uvx >/dev/null; then
+ok "invalid artifact -> exit 1, status=invalid"   '[ $rc -eq 1 ] && [ "$(jq -r .status "$M")" = invalid ]'
+ok "previous valid ckb.json NOT overwritten"      '[ "$(shasum < "$A")" = "$good" ]'
+ok "rejected candidate kept for inspection"       '[ -s "$KB/ckb.json.rejected" ]'
+ok "draft kept for repair on failure"             '[ -e "$KB/ckb.draft.json" ]'
+ok "no commit hint on failure"                    '! grep -q COMMIT_HINT "$T/out"'
+ok "freshness: last run invalid -> not fresh"     '! "$ROOT/scripts/freshness.sh" "$REPO" >/dev/null'
+fi
+PATH_NOUV="$(printf '%s' "$PATH" | tr ':' '\n' | while read -r d; do [ -x "$d/uvx" ] || printf '%s:' "$d"; done)"
+cp "$ROOT/tests/fixtures/messy-draft.json" "$KB/ckb.draft.json"
+PATH="$PATH_NOUV" "$ROOT/scripts/finalize.sh" "$REPO" "$KB" >"$T/out" 2>&1; rc=$?
+ok "no uvx -> status=unverified, exit 1, no hint" '[ $rc -eq 1 ] && [ "$(jq -r .status "$M")" = unverified ] && ! grep -q COMMIT_HINT "$T/out"'
+run
+ok "valid run clears the rejected candidate"      '[ ! -e "$KB/ckb.json.rejected" ] && [ "$(jq -r .status "$M")" = complete ]'
+echo "// dirty" >> "$REPO/a.ts"
+ok "freshness: uncommitted source edits -> not fresh" '{ "$ROOT/scripts/freshness.sh" "$REPO" || true; } | grep -q "REASON=dirty-worktree"'
+git -C "$REPO" checkout -q -- a.ts
+# secret redaction: a value from .env copied into a doc must be redacted, never committed
+printf 'DB_PASSWORD=Sup3rS3cretValue_9xQ\n' > "$REPO/.env"
+run; echo "pw is Sup3rS3cretValue_9xQ here" >> "$KB/01-technical-architecture.md"; cp "$ROOT/tests/fixtures/messy-draft.json" "$KB/ckb.draft.json"
+"$ROOT/scripts/finalize.sh" "$REPO" "$KB" >"$T/out" 2>&1
+ok "secret value from .env redacted in KB"     '! grep -rqF Sup3rS3cretValue_9xQ "$KB" && grep -q "\[REDACTED\]" "$KB/01-technical-architecture.md"'
+ok "redaction recorded in manifest warnings"   'jq -e "[.warnings[] | select(startswith(\"redacted\"))] | length == 1" "$M" >/dev/null'
+ok "manifest sha256 matches redacted file"     '[ "$(jq -r ".outputs[] | select(.file==\"01-technical-architecture.md\") | .sha256" "$M")" = "$(shasum -a 256 "$KB/01-technical-architecture.md" | cut -d" " -f1)" ]'
+rm -f "$REPO/.env"
 rm "$KB/03-business-rules.md"; run; rc=$?
 ok "missing doc -> status=incomplete"           '[ $rc -ne 0 ] && [ "$(jq -r .status "$M")" = incomplete ]'
 rm -f "$KB/.ckb-output"; run; rc=$?

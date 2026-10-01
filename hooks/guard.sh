@@ -7,8 +7,8 @@
 # Unarmed sessions pass through untouched, so installing the plugin never locks normal work.
 #
 # POLICY when enforcing — fails CLOSED:
-#   · Write/Edit only inside a dir marked `.ckb-output` (created by scripts/resolve-kb.sh), never inside
-#     the marker's target repo or the session's git work tree; symlinks resolved before checking.
+#   · Write/Edit only inside a dir marked `.ckb-output` (created by scripts/resolve-kb.sh); inside a git work tree
+#     only at exactly <work-tree>/.ckb — the rest of the repo stays read-only. Symlinks resolved before checking.
 #   · Bash: plugin's own scripts, plus a read-only command allowlist; every segment head is checked.
 #   · Any tool not on the known non-mutating list is blocked (MCP tools included).
 set -uo pipefail
@@ -25,7 +25,7 @@ sid="$(printf '%s' "${sid:-}" | tr -cd 'A-Za-z0-9_-')"
 tool="$(jqget '.tool_name')"; [ -z "${tool:-}" ] && tool="$(rawget tool_name)"
 cwd="$(jqget '.cwd')"; [ -z "${cwd:-}" ] && cwd="$(rawget cwd)"; [ -z "${cwd:-}" ] && cwd="$PWD"
 
-SCRIPTS='resolve-kb.sh|clone.sh|finalize.sh|validate.sh'
+SCRIPTS='resolve-kb.sh|clone.sh|finalize.sh|validate.sh|freshness.sh'
 is_plugin_script(){ # $1 = command head; true only for this plugin's own scripts, by real path
   local d b
   case "$1" in */scripts/*) ;; *) return 1 ;; esac
@@ -62,14 +62,15 @@ kb_root_of(){ # nearest ancestor dir carrying .ckb-output
   return 1
 }
 write_allowed(){ # $1 = raw file path
-  local fp kb tr wt
+  local fp kb wt
   case "$1" in *..*) block "write path contains '..': $1" ;; "") block "write with no path (fail-closed)" ;; esac
   fp="$(canon "$1")"
-  kb="$(kb_root_of "$fp")" || block "writes are allowed only inside a CKB output dir (.ckb-output marker); denied: $fp"
-  tr="$(sed -n 's/^target_root=//p' "$kb/.ckb-output" | head -1)"
-  [ -n "$tr" ] && inside "$fp" "$tr" && block "path is inside the analysed repo ($tr); denied: $fp"
-  wt="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" && [ -n "$wt" ] && wt="$(cd "$wt" && pwd -P)" && inside "$fp" "$wt" \
-    && block "path is inside the session's git work tree ($wt); denied: $fp"
+  kb="$(kb_root_of "$fp")" || block "writes are allowed only inside the KB dir (<repo>/.ckb, marked .ckb-output); denied: $fp"
+  # inside a git work tree the ONLY writable place is exactly <work-tree>/.ckb (a forged marker elsewhere is useless)
+  if wt="$(git -C "$(dirname "$kb")" rev-parse --show-toplevel 2>/dev/null)" && [ -n "$wt" ]; then
+    wt="$(cd "$wt" && pwd -P)"
+    [ "$kb" = "$wt/.ckb" ] || block "inside a git work tree only '$wt/.ckb' is writable; denied: $fp"
+  fi
   return 0
 }
 

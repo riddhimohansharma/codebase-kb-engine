@@ -6,7 +6,7 @@ T="$(mktemp -d)"; T="$(cd "$T" && pwd -P)"; trap 'chmod -R u+w "$T" 2>/dev/null;
 export CLAUDE_PLUGIN_DATA="$T/data" CKB_CLONE_BASE="$T/clones"; unset KB_DIR CKB_ENFORCE
 : > "$T/r"
 REPO="$T/work/app"; mkdir -p "$REPO/src" && git -C "$REPO" init -q -b main && echo x > "$REPO/src/a.ts"
-"$ROOT/scripts/resolve-kb.sh" "$REPO" >/dev/null; KB="$T/work/app-kb"
+"$ROOT/scripts/resolve-kb.sh" "$REPO" >/dev/null; KB="$REPO/.ckb"
 mkdir -p "$T/plain"; ln -s "$REPO/src" "$KB/escape"
 
 payload(){ # $1 session $2 tool $3 key $4 value [$5 cwd]
@@ -42,7 +42,7 @@ payload a Write file_path "$KB/sub/dir/ckb.draft.json" | expect allow "Write to 
 payload a Edit file_path "$KB/00-overview.md" | expect allow "Edit inside KB"
 payload a Write file_path "$REPO/src/a.ts" | expect block "Write inside target repo"
 payload a Edit file_path "$REPO/src/a.ts" | expect block "Edit inside target repo"
-payload a Write file_path "$KB/escape/pwn.ts" | expect block "symlink from KB into repo"
+payload a Write file_path "$KB/escape/pwn.ts" | expect block "symlink from .ckb into repo source"
 payload a Write file_path "$KB/../app/src/a.ts" | expect block "'..' traversal"
 payload a Write file_path "$T/plain/x.md" | expect block "unmarked dir"
 payload a Write file_path "00-overview.md" | expect block "relative path resolving into repo"
@@ -51,7 +51,15 @@ payload a mcp__fs__write_file path "$KB/x" | expect block "unknown/MCP tool (fai
 payload a Read file_path "$REPO/src/a.ts" | expect allow "Read"
 payload a Grep pattern "x" | expect allow "Grep"
 mkdir -p "$REPO/inner-kb" && touch "$REPO/inner-kb/.ckb-output"
-payload a Write file_path "$REPO/inner-kb/x.md" | expect block "forged marker inside session work tree"
+payload a Write file_path "$REPO/inner-kb/x.md" | expect block "forged marker elsewhere in the repo is useless"
+payload a Write file_path "$REPO/.ckb-evil/x.md" | expect block "look-alike dir name .ckb-evil"
+payload a Write file_path "$REPO/.ckb" | expect block "writing the .ckb path itself"
+payload a Write file_path "$REPO/.gitattributes" | expect block "repo-root file next to .ckb"
+payload a Write file_path "$REPO/src/.ckb/x.md" | expect block "nested src/.ckb (not work-tree root)"
+payload a Write file_path "$KB/.gitattributes" | expect allow "KB-local .gitattributes"
+payload a Write file_path "$KB/README.md" | expect allow "KB README index"
+OUT="$T/outside/proj-ckb"; mkdir -p "$OUT" && touch "$OUT/.ckb-output"
+payload a Write file_path "$OUT/ckb.json" "$T" | expect allow "URL-mode output dir outside any work tree"
 
 echo "## bash (armed)"
 for c in "git status" "git log --oneline -5" "ls -la $REPO" "cat $REPO/src/a.ts | grep x" "find $REPO -name '*.ts'" "git -C $REPO rev-parse HEAD" "jq . $KB/ckb.json 2>/dev/null"; do
@@ -72,17 +80,29 @@ grep -q 'pipe-to-shell' "$T/err" && { echo P >> "$T/r"; echo "PASS pipe-to-shell
 unset ENVX
 
 echo "## resolve-kb.sh"
-KB_DIR="$REPO/docs-kb" "$ROOT/scripts/resolve-kb.sh" "$REPO" >/dev/null 2>&1; rc=$?
-[ $rc -eq 4 ] && [ ! -e "$REPO/docs-kb" ] && { echo P >> "$T/r"; echo "PASS refuse KB_DIR inside repo, wrote nothing"; } || { echo F >> "$T/r"; echo "FAIL KB_DIR inside repo rc=$rc"; }
+res(){ "$ROOT/scripts/resolve-kb.sh" "$@" >"$T/o" 2>&1; echo $?; }
+chk(){ if eval "$2"; then echo P >> "$T/r"; echo "PASS $1"; else echo F >> "$T/r"; echo "FAIL $1 :: $(head -2 "$T/o" | tr '\n' ' ')"; fi; }
+rc=$(res "$REPO/src");                         chk "local mode -> <root>/.ckb from a subdir"       '[ $rc -eq 0 ] && grep -qx "KB_DIR=$REPO/.ckb" "$T/o"'
+rc=$(KB_DIR="$T/elsewhere" res "$REPO");       chk "KB_DIR ignored in local mode (one standard)"    '[ $rc -eq 0 ] && grep -qx "KB_DIR=$REPO/.ckb" "$T/o" && [ ! -e "$T/elsewhere" ]'
+grep -q 'ckb-output v1' "$KB/.ckb-output";     chk "marker is static (no paths/timestamps to commit)" '! grep -qE "/|[0-9]{4}-[0-9]{2}" "$KB/.ckb-output"'
+mkdir -p "$T/nogit";   rc=$(res "$T/nogit");   chk "refuse local mode outside a git repo"           '[ $rc -eq 2 ] && [ ! -e "$T/nogit/.ckb" ]'
+R2="$T/r2"; mkdir -p "$R2" "$T/target" && git -C "$R2" init -q && ln -s "$T/target" "$R2/.ckb"
+rc=$(res "$R2");                               chk "refuse .ckb symlink"                            '[ $rc -eq 4 ] && [ ! -e "$T/target/.ckb-output" ]'
+R3="$T/r3"; mkdir -p "$R3/.ckb" && git -C "$R3" init -q && echo mine > "$R3/.ckb/notes"
+rc=$(res "$R3");                               chk "refuse non-empty unmarked .ckb"                 '[ $rc -eq 5 ] && [ ! -e "$R3/.ckb/.ckb-output" ]'
+R4="$T/r4"; mkdir -p "$R4" && git -C "$R4" init -q && chmod 500 "$R4"
+rc=$(res "$R4");                               chk "unwritable repo: clear message, wrote nothing"  '[ $rc -eq 3 ] && [ ! -e "$R4/.ckb" ]'; chmod 700 "$R4"
+rc=$(res "$R4" --check);                       chk "--check creates nothing"                        '[ $rc -eq 0 ] && [ ! -e "$R4/.ckb" ]'
+C="$T/clones/job.x/proj"; mkdir -p "$C" && git -C "$C" init -q
+rc=$(cd "$T/nogit" && KB_DIR="$C/.ckb" "$ROOT/scripts/resolve-kb.sh" "$C" --url-mode --name proj >"$T/o" 2>&1; echo $?)
+chk "URL mode refuses KB inside the ephemeral clone" '[ $rc -eq 4 ]'
+rc=$(cd "$T/nogit" && "$ROOT/scripts/resolve-kb.sh" "$C" --url-mode --name proj >"$T/o" 2>&1; echo $?)
+chk "URL mode default: <cwd>/<name>-ckb" '[ $rc -eq 0 ] && grep -qx "KB_DIR=$T/nogit/proj-ckb" "$T/o"'
+rc=$(cd "$REPO" && "$ROOT/scripts/resolve-kb.sh" "$C" --url-mode --name proj >"$T/o" 2>&1; echo $?)
+chk "URL mode from inside a repo: sibling of that repo" '[ $rc -eq 0 ] && grep -qx "KB_DIR=$T/work/proj-ckb" "$T/o"'
 mkdir -p "$T/ro" && chmod 500 "$T/ro"
-out="$(KB_DIR="$T/ro/app-kb" "$ROOT/scripts/resolve-kb.sh" "$REPO" 2>&1)"; rc=$?
-[ $rc -eq 3 ] && [ ! -e "$T/ro/app-kb" ] && printf "%s" "$out" | grep -q -- "mkdir -p .* && .*--add-dir" && { echo P >> "$T/r"; echo "PASS unwritable KB: exact --add-dir line, wrote nothing"; } || { echo F >> "$T/r"; echo "FAIL unwritable rc=$rc"; }
-chmod 700 "$T/ro"
-mkdir -p "$T/busy" && echo keep > "$T/busy/f"
-KB_DIR="$T/busy" "$ROOT/scripts/resolve-kb.sh" "$REPO" >/dev/null 2>&1; rc=$?
-[ $rc -eq 5 ] && [ ! -e "$T/busy/.ckb-output" ] && { echo P >> "$T/r"; echo "PASS refuse non-empty unmarked dir"; } || { echo F >> "$T/r"; echo "FAIL busy rc=$rc"; }
-out="$("$ROOT/scripts/resolve-kb.sh" "$REPO/src")"
-printf '%s' "$out" | grep -qx "KB_DIR=$KB" && { echo P >> "$T/r"; echo "PASS subdir target resolves to repo-root sibling"; } || { echo F >> "$T/r"; echo "FAIL subdir: $out"; }
+rc=$(cd "$T/nogit" && KB_DIR="$T/ro/p-ckb" "$ROOT/scripts/resolve-kb.sh" "$C" --url-mode --name p >"$T/o" 2>&1; echo $?)
+chk "URL mode unwritable: exact mkdir+--add-dir line, wrote nothing" '[ $rc -eq 3 ] && [ ! -e "$T/ro/p-ckb" ] && grep -q "mkdir -p .* && .*--add-dir" "$T/o"'; chmod 700 "$T/ro"
 
 echo "## clone.sh (local file:// fixture)"
 bare="$T/remote/proj.git"; git init -q --bare -b trunk "$bare"

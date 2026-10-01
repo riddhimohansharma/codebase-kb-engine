@@ -21,5 +21,8 @@ def claims: [.entities[]?[]?, .relations[]?];
     # R5: workflow step order is 1..n without gaps or duplicates
     ($a.entities.workflows[]? | select(([.steps[].order] | sort) != [range(1; (.steps | length) + 1)]) | "R5 workflow \(.id) step order not 1..n"),
     # R6: end_line >= line
-    (claims[] | .provenance[]? | select(.end_line != null and .end_line < .line) | "R6 end_line < line at \(.path)")
+    (claims[] | .provenance[]? | select(.end_line != null and .end_line < .line) | "R6 end_line < line at \(.path)"),
+    # R7: no claim cites the KB itself (no self-contamination)
+    (claims[] | .provenance[]? | select(.path == ".ckb" or (.path | startswith(".ckb/"))) | "R7 provenance cites the KB directory: \(.path)"),
+    ([$a.entities.components[]? | select(.module_id == ".ckb" or (.module_id | startswith(".ckb/")))] | .[] | "R7 component inside the KB directory: \(.id)")
   ]
