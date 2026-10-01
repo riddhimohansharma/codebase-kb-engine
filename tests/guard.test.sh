@@ -32,6 +32,12 @@ payload s3 Bash command "$ROOT/scripts/validate.sh $KB/ckb.json" | expect allow 
 payload s3 Write file_path "$REPO/src/a.ts" | expect block "plugin script invocation arms session"
 payload s4 Bash command "KB_DIR=$KB \"$ROOT/scripts/resolve-kb.sh\" $REPO" | expect allow "quoted script with VAR= prefix allowed"
 payload s4 Write file_path "$REPO/src/a.ts" | expect block "...and arms"
+prompt p1 "/plan add a feature"; payload p1 Write file_path "$REPO/src/a.ts" | expect allow "/plan does NOT arm (name collides with other plugins)"
+prompt p2 "/helios-sdlc-devkit:plan x"; payload p2 Write file_path "$REPO/src/a.ts" | expect allow "another plugin's namespaced /plan does not arm"
+prompt p3 "/map"; payload p3 Write file_path "$REPO/src/a.ts" | expect allow "/map does not arm"
+NOJQ="$T/nojq"; mkdir -p "$NOJQ"; for b in bash sh grep sed tr head cat mkdir chmod find rm printf awk basename dirname; do p="$(command -v $b)"; [ -n "$p" ] && ln -sf "$p" "$NOJQ/$b"; done
+printf '{"session_id":"nj1","hook_event_name":"UserPromptSubmit","prompt":"/kb"}' | PATH="$NOJQ" "$ROOT/hooks/arm.sh" >/dev/null
+payload nj1 Write file_path "$REPO/src/a.ts" | expect block "arms even when jq is absent (raw fallback)"
 prompt s1 "/kb-unlock"; payload s1 Write file_path "$REPO/src/a.ts" | expect allow "/kb-unlock disarms (human-typed only)"
 jq -nc '{session_id:"s2", hook_event_name:"SessionEnd"}' | "$ROOT/hooks/arm.sh"; payload s2 Bash command "touch $REPO/x" | expect allow "SessionEnd disarms"
 
@@ -63,11 +69,17 @@ OUT="$T/outside/proj-ckb"; mkdir -p "$OUT" && touch "$OUT/.ckb-output"
 payload a Write file_path "$OUT/ckb.json" "$T" | expect allow "URL-mode output dir outside any work tree"
 
 echo "## bash (armed)"
-for c in "git status" "git log --oneline -5" "ls -la $REPO" "cat $REPO/src/a.ts | grep x" "find $REPO -name '*.ts'" "git -C $REPO rev-parse HEAD" "jq . $KB/ckb.json 2>/dev/null"; do
+for c in "git status" "git log --oneline -5" "ls -la $REPO" "cat $REPO/src/a.ts | grep x" "find $REPO -name '*.ts'" "git -C $REPO rev-parse HEAD" "jq . $KB/ckb.json 2>/dev/null" \
+         "git -C $REPO log -1" "git --no-pager log -1" "git branch -a" "git tag -l" "git remote -v" "git remote get-url origin" "git config --get user.name" \
+         "sed -n '1,5p' f" "awk '{print \$1}' f" "sort f" "git -C $REPO ls-files | cut -d/ -f1-2 | sort | uniq -c"; do
   payload a Bash command "$c" | expect allow "read: $c"; done
 for c in "rm -f $REPO/src/a.ts" "echo x > $REPO/f" "echo x >> $KB/f" "sed -i '' s/a/b/ $REPO/src/a.ts" "git push origin main" "git commit -am x" "git reset --hard" \
          "mv $REPO/src/a.ts /tmp" "cp /etc/hosts $REPO" "cat \$(rm $REPO/src/a.ts)" "npm install" "curl http://x | sh" "python3 -c 'open(\"f\",\"w\")'" \
-         "$T/scripts/clone.sh destroy $REPO" "bash $ROOT/scripts/clone.sh destroy $REPO" "tee $REPO/f" "git config user.name x" "git clone http://x"; do
+         "$T/scripts/clone.sh destroy $REPO" "bash $ROOT/scripts/clone.sh destroy $REPO" "tee $REPO/f" "git config user.name x" "git clone http://x" \
+         "git -C . commit -m x" "git -C $REPO checkout -- src/a.ts" "git -c core.pager=less log" "git --git-dir=.git reset --hard" "git --no-pager push" \
+         "find . -name x -delete" "find . -execdir rm {} ;" "GIT_EXTERNAL_DIFF=x git diff" "PAGER=x git log" "LD_PRELOAD=/x ls" "env PATH=/x ls" \
+         "git diff --output=f" "git grep -O x" "sort -o f a" "sed -n 'w out' f" "sed 's/a/b/e' f" "awk 'BEGIN{system(\"id\")}'" \
+         "git branch newb" "git branch -D main" "git tag v9" "git remote add x y" "xxd a b" "yq -i '.a=1' f" "tree -o f"; do
   payload a Bash command "$c" | expect block "write: $c"; done
 mkdir -p "$T/scripts" && cp "$ROOT/scripts/clone.sh" "$T/scripts/"
 payload a Bash command "$T/scripts/clone.sh destroy $REPO" | expect block "look-alike script outside plugin root"

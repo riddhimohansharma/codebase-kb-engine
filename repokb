@@ -135,7 +135,7 @@ case "$cmd" in
     if command -v claude >/dev/null 2>&1; then say "claude : $(claude --version 2>/dev/null | head -1)"; else say "claude : MISSING"; ok=0; fi
     if command -v jq >/dev/null 2>&1; then say "jq     : $(jq --version 2>/dev/null)"; else say "jq     : MISSING (required by finalize/validate)"; ok=0; fi
     if command -v uvx >/dev/null 2>&1; then say "uvx    : $(uvx --version 2>/dev/null)"; else say "uvx    : MISSING (schema validation will report SKIPPED)"; fi
-    for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json hooks/guard.sh hooks/arm.sh commands/kb.md commands/kb-validate.md commands/kb-unlock.md skills/kb/SKILL.md skills/ckb-contract/SKILL.md scripts/resolve-kb.sh scripts/clone.sh scripts/finalize.sh scripts/validate.sh scripts/normalize.jq spec/v0.1/ckb.schema.json spec/v0.1/semantic.jq; do
+    for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json hooks/guard.sh hooks/arm.sh commands/kb.md commands/kb-validate.md commands/kb-unlock.md skills/kb-docs/SKILL.md skills/ckb-contract/SKILL.md agents/scout.md agents/auditor.md scripts/resolve-kb.sh scripts/clone.sh scripts/finalize.sh scripts/validate.sh scripts/normalize.jq scripts/inventory.sh scripts/coverage.sh scripts/lint-docs.sh scripts/docmeta.sh scripts/reference.sh spec/v0.1/ckb.schema.json spec/v0.1/semantic.jq spec/v0.2/ckb.schema.json spec/v0.2/semantic.jq spec/v0.2/derive.jq; do
       if [ -e "$ENGINE/$f" ]; then say "ok     : $f"; else say "MISSING: $f"; ok=0; fi
     done
     [ -x "$ENGINE/hooks/guard.sh" ] || say "warn   : hooks/guard.sh not executable (chmod +x)"

@@ -1,0 +1,413 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/riddhimohansharma/codebase-kb-spec/schema/v0.2/ckb.schema.json",
+  "title": "Codebase Knowledge Base (CKB) artifact",
+  "description": "DRAFT v0.2 — unstable. Breaking changes may occur without notice until 1.0. One artifact describes one repository at one commit. Canonical location: <repo-root>/ckb/ckb.json. Entity IDs are derived by schema/v0.2/derive.jq (rule R8).",
+  "type": "object",
+  "required": ["ckb_version", "repo", "confidence_summary", "entities"],
+  "additionalProperties": false,
+  "patternProperties": { "^x-": {} },
+  "properties": {
+    "ckb_version": { "const": "0.2" },
+    "repo": { "$ref": "#/$defs/repo" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "repo_profile": { "$ref": "#/$defs/repo_profile" },
+    "coverage": { "$ref": "#/$defs/coverage" },
+    "confidence_summary": { "$ref": "#/$defs/confidence_summary" },
+    "entities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "components": { "type": "array", "items": { "$ref": "#/$defs/component" } },
+        "interfaces": { "type": "array", "items": { "$ref": "#/$defs/interface" } },
+        "dependencies": { "type": "array", "items": { "$ref": "#/$defs/dependency" } },
+        "datastores": { "type": "array", "items": { "$ref": "#/$defs/datastore" } },
+        "business_rules": { "type": "array", "items": { "$ref": "#/$defs/business_rule" } },
+        "workflows": { "type": "array", "items": { "$ref": "#/$defs/workflow" } },
+        "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } },
+        "services": { "type": "array", "items": { "$ref": "#/$defs/service" } },
+        "config_keys": { "type": "array", "items": { "$ref": "#/$defs/config_key" } },
+        "external_services": { "type": "array", "items": { "$ref": "#/$defs/external_service" } },
+        "api_specs": { "type": "array", "items": { "$ref": "#/$defs/api_spec" } }
+      }
+    },
+    "relations": { "type": "array", "items": { "$ref": "#/$defs/relation" } }
+  },
+  "$defs": {
+    "repo": {
+      "description": "Repository identity. (url, commit_sha) is the node key; generated_at is the freshness signal.",
+      "type": "object",
+      "required": ["url", "branch", "commit_sha", "generated_at"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Canonical URL: https://<lowercase-host>[:port]/<path> with no credentials, no trailing '/' and no '.git' suffix (ssh 'git@host:o/r.git' becomes 'https://host/o/r'); or file://<absolute-path> for local-only repos.",
+          "anyOf": [
+            {
+              "pattern": "^https://[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:[0-9]+)?(/[^/\\s?#]+)+$",
+              "not": { "pattern": "\\.git$" }
+            },
+            { "pattern": "^file:///[^\\s]*$" }
+          ]
+        },
+        "branch": { "type": "string", "minLength": 1 },
+        "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$|^[0-9a-f]{64}$", "description": "The analysed SOURCE commit (full SHA-1 or SHA-256, lowercase). Committing the KB itself does not change it; see the freshness rule." },
+        "generated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "repo_profile": {
+      "description": "Repository-level facts that are not entities.",
+      "type": "object",
+      "required": ["languages", "frameworks", "build_tools", "owners"],
+      "additionalProperties": false,
+      "properties": {
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "files"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "files": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "frameworks": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "build_tools": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "license": { "type": "string", "pattern": "^[A-Za-z0-9()][A-Za-z0-9.+:() -]*$", "description": "SPDX license identifier or expression, e.g. MIT, Apache-2.0, (MIT OR Apache-2.0)." },
+        "owners": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "source"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "source": { "enum": ["codeowners", "catalog-info", "manifest", "other"] }
+            }
+          }
+        }
+      }
+    },
+    "coverage_bucket": {
+      "type": "object",
+      "required": ["found", "cited", "uncited"],
+      "additionalProperties": false,
+      "properties": {
+        "found": { "type": "integer", "minimum": 0, "description": "Files of this kind the producer found." },
+        "cited": { "type": "integer", "minimum": 0, "description": "Of those, files cited by at least one claim (R12: cited <= found)." },
+        "uncited": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/repo_path" }, "description": "Found but uncited files (truncated at 200; R12: length <= found)." }
+      }
+    },
+    "coverage": {
+      "description": "What the producer looked at, so consumers can tell 'absent' from 'not examined'.",
+      "type": "object",
+      "required": ["files_total", "sampled", "buckets"],
+      "additionalProperties": false,
+      "properties": {
+        "files_total": { "type": "integer", "minimum": 0 },
+        "sampled": { "type": "boolean", "description": "True if the producer analysed only a sample of files." },
+        "buckets": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "manifests": { "$ref": "#/$defs/coverage_bucket" },
+            "lockfiles": { "$ref": "#/$defs/coverage_bucket" },
+            "routes": { "$ref": "#/$defs/coverage_bucket" },
+            "events": { "$ref": "#/$defs/coverage_bucket" },
+            "datastores": { "$ref": "#/$defs/coverage_bucket" },
+            "migrations": { "$ref": "#/$defs/coverage_bucket" },
+            "iac": { "$ref": "#/$defs/coverage_bucket" },
+            "ci": { "$ref": "#/$defs/coverage_bucket" },
+            "config": { "$ref": "#/$defs/coverage_bucket" },
+            "api_specs": { "$ref": "#/$defs/coverage_bucket" }
+          }
+        }
+      }
+    },
+    "confidence": { "enum": ["confirmed", "inferred", "unknown"] },
+    "confidence_summary": {
+      "type": "object",
+      "required": ["confirmed", "inferred", "unknown", "overall"],
+      "additionalProperties": false,
+      "properties": {
+        "confirmed": { "type": "integer", "minimum": 0 },
+        "inferred": { "type": "integer", "minimum": 0 },
+        "unknown": { "type": "integer", "minimum": 0 },
+        "overall": { "$ref": "#/$defs/confidence" }
+      }
+    },
+    "repo_path": {
+      "description": "Repo-relative POSIX path. No leading slash, no '..' segments. Must not point into the ckb/ directory (rule R7).",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^/]",
+      "not": { "pattern": "(^|/)\\.\\.(/|$)" }
+    },
+    "purl": {
+      "description": "Versionless Package URL (https://github.com/package-url/purl-spec): pkg:<type>/<namespace>/<name>, with no @version, ?qualifiers or #subpath. A literal '@' (e.g. an npm scope) is percent-encoded as %40.",
+      "type": "string",
+      "pattern": "^pkg:[a-z][a-z0-9.+-]*/[^@?#\\s]+$"
+    },
+    "service_key": {
+      "description": "Logical service name, lowercase kebab-case.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "normalized_path": {
+      "type": "string",
+      "pattern": "^/([A-Za-z0-9._~-]+|\\{[a-z_][a-z0-9_]*\\})?(/([A-Za-z0-9._~-]+|\\{[a-z_][a-z0-9_]*\\}))*$",
+      "description": "Path params as {snake_case}; no trailing slash (except '/'); no query string."
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["path", "line"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "$ref": "#/$defs/repo_path" },
+        "line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "claim": {
+      "description": "Fields shared by every entity and relation. Provenance is mandatory unless confidence is 'unknown'. Fields starting with 'x-' are vendor extensions.",
+      "type": "object",
+      "required": ["confidence", "provenance"],
+      "patternProperties": { "^x-": {} },
+      "properties": {
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "provenance": { "type": "array", "items": { "$ref": "#/$defs/provenance" } }
+      },
+      "if": { "properties": { "confidence": { "enum": ["confirmed", "inferred"] } } },
+      "then": { "properties": { "provenance": { "minItems": 1 } } }
+    },
+    "entity_base": {
+      "allOf": [{ "$ref": "#/$defs/claim" }],
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "minLength": 3 },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" }
+      }
+    },
+    "entity_id": {
+      "type": "string",
+      "pattern": "^(component|interface|dependency|datastore|business_rule|workflow|artifact|service|config|external|api_spec):.+$"
+    },
+    "component": {
+      "allOf": [{ "$ref": "#/$defs/entity_base" }],
+      "unevaluatedProperties": false,
+      "required": ["module_id", "kind"],
+      "properties": {
+        "id": { "pattern": "^component:" },
+        "module_id": { "$ref": "#/$defs/repo_path", "description": "Stable repo-relative identifier (directory or file path)." },
+        "kind": { "enum": ["service", "library", "module", "cli", "ui", "job", "other"] },
+        "language": { "type": "string" }
+      }
+    },
+    "interface": {
+      "unevaluatedProperties": false,
+      "required": ["kind", "role"],
+      "properties": {
+        "id": { "pattern": "^interface:" },
+        "kind": { "enum": ["http", "event", "rpc", "cli", "library", "websocket"] },
+        "role": { "enum": ["provides", "consumes"] },
+        "service_key": { "$ref": "#/$defs/service_key", "description": "For role=provides: the logical service serving this interface (joins to service.service_key)." },
+        "http": {
+          "type": "object",
+          "required": ["method", "normalized_path"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "ANY"] },
+            "normalized_path": { "$ref": "#/$defs/normalized_path" },
+            "host": { "type": "string", "minLength": 1, "description": "For role=consumes: normalized target service_key or lowercase host, if known." }
+          }
+        },
+        "websocket": {
+          "type": "object",
+          "required": ["normalized_path"],
+          "additionalProperties": false,
+          "properties": {
+            "normalized_path": { "$ref": "#/$defs/normalized_path" },
+            "host": { "type": "string", "minLength": 1, "description": "For role=consumes: normalized target service_key or lowercase host, if known." }
+          }
+        },
+        "event": {
+          "type": "object",
+          "required": ["transport", "topic"],
+          "additionalProperties": false,
+          "properties": {
+            "transport": { "enum": ["kafka", "sqs", "sns", "rabbitmq", "pubsub", "eventbridge", "nats", "redis", "kinesis", "servicebus", "pulsar", "mqtt", "webhook", "other"] },
+            "topic": { "type": "string", "minLength": 1 }
+          }
+        },
+        "rpc": {
+          "type": "object",
+          "required": ["protocol", "service", "method"],
+          "additionalProperties": false,
+          "properties": {
+            "protocol": { "enum": ["grpc", "thrift", "jsonrpc", "graphql", "other"] },
+            "service": { "type": "string", "minLength": 1 },
+            "method": { "type": "string", "minLength": 1 }
+          }
+        },
+        "symbol": { "type": "string", "minLength": 1, "description": "For kind=cli|library: command or exported symbol." }
+      },
+      "allOf": [
+        { "$ref": "#/$defs/entity_base" },
+        { "if": { "properties": { "kind": { "const": "http" } } }, "then": { "required": ["http"] } },
+        { "if": { "properties": { "kind": { "const": "websocket" } } }, "then": { "required": ["websocket"] } },
+        { "if": { "properties": { "kind": { "const": "event" } } }, "then": { "required": ["event"] } },
+        { "if": { "properties": { "kind": { "const": "rpc" } } }, "then": { "required": ["rpc"] } },
+        { "if": { "properties": { "kind": { "enum": ["cli", "library"] } } }, "then": { "required": ["symbol"] } }
+      ]
+    },
+    "dependency": {
+      "description": "Something this repo CONSUMES. Identity is the versionless purl; one entity per (purl, manifest_path).",
+      "allOf": [{ "$ref": "#/$defs/entity_base" }],
+      "unevaluatedProperties": false,
+      "required": ["purl", "manifest_path", "scope", "source"],
+      "properties": {
+        "id": { "pattern": "^dependency:" },
+        "purl": { "$ref": "#/$defs/purl" },
+        "manifest_path": { "$ref": "#/$defs/repo_path", "description": "Manifest that declares the dependency." },
+        "scope": { "enum": ["runtime", "dev", "build", "test", "peer", "optional"] },
+        "version_constraint": { "type": "string" },
+        "resolved_version": { "type": "string" },
+        "source": { "enum": ["registry", "workspace", "git", "path", "vendored", "unknown"] }
+      }
+    },
+    "datastore": {
+      "allOf": [{ "$ref": "#/$defs/entity_base" }],
+      "unevaluatedProperties": false,
+      "required": ["engine", "access"],
+      "properties": {
+        "id": { "pattern": "^datastore:" },
+        "engine": { "enum": ["postgres", "mysql", "sqlite", "mssql", "oracle", "mongodb", "dynamodb", "redis", "elasticsearch", "s3", "gcs", "azure-blob", "cassandra", "bigquery", "snowflake", "clickhouse", "neo4j", "cosmosdb", "firestore", "filesystem", "other"] },
+        "instance_key": {
+          "type": "string",
+          "pattern": "^[^\\s:/@]+$",
+          "description": "Logical database/cluster name, or the NAME of the environment variable holding the connection string. Never a value: connection strings (containing ':', '/' or '@') are rejected."
+        },
+        "schema": { "type": "string" },
+        "table": { "type": "string", "description": "Table, collection, bucket, or key prefix." },
+        "access": { "enum": ["read", "write", "readwrite"] }
+      }
+    },
+    "business_rule": {
+      "allOf": [{ "$ref": "#/$defs/entity_base" }],
+      "unevaluatedProperties": false,
+      "required": ["statement"],
+      "properties": {
+        "id": { "pattern": "^business_rule:" },
+        "statement": { "type": "string", "minLength": 1 },
+        "applies_to": { "type": "array", "items": { "$ref": "#/$defs/entity_id" } }
+      }
+    },
+    "workflow": {
+      "allOf": [{ "$ref": "#/$defs/entity_base" }],
+      "unevaluatedProperties": false,
+      "required": ["steps"],
+      "properties": {
+        "id": { "pattern": "^workflow:" },
+        "trigger": { "type": "string" },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["order", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "order": { "type": "integer", "minimum": 1 },
+              "description": { "type": "string", "minLength": 1 },
+              "entity_id": { "$ref": "#/$defs/entity_id" }
+            }
+          }
+        }
+      }
+    },
+    "artifact": {
+      "description": "Something this repo PUBLISHES. A consumer resolves another repo's dependency to this repo by equal purl.",
+      "allOf": [{ "$ref": "#/$defs/entity_base" }],
+      "unevaluatedProperties": false,
+      "required": ["kind", "purl", "manifest_path"],
+      "properties": {
+        "id": { "pattern": "^artifact:" },
+        "kind": { "enum": ["package", "container_image", "helm_chart", "binary", "terraform_module", "function", "static_site", "other"] },
+        "purl": { "$ref": "#/$defs/purl" },
+        "version": { "type": "string" },
+        "manifest_path": { "$ref": "#/$defs/repo_path", "description": "Manifest that defines the published artifact (package.json, Dockerfile, Chart.yaml, ...)." }
+      }
+    },
+    "service": {
+      "description": "Deployable runtime unit.",
+      "allOf": [{ "$ref": "#/$defs/entity_base" }],
+      "unevaluatedProperties": false,
+      "required": ["service_key", "runtime"],
+      "properties": {
+        "id": { "pattern": "^service:" },
+        "service_key": { "$ref": "#/$defs/service_key" },
+        "runtime": { "enum": ["k8s", "ecs", "lambda", "cloudrun", "vm", "container", "serverless", "other"] },
+        "ports": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 65535 } },
+        "environments": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "config_key": {
+      "description": "A configuration key. NAMES ONLY: values are never recorded (the object is closed, so a 'value' field is rejected).",
+      "allOf": [{ "$ref": "#/$defs/entity_base" }],
+      "unevaluatedProperties": false,
+      "required": ["source", "is_secret"],
+      "properties": {
+        "id": { "pattern": "^config:" },
+        "name": { "type": "string", "pattern": "^\\S+$", "description": "The key name, e.g. DATABASE_URL." },
+        "source": { "enum": ["env", "file", "vault", "aws_ssm", "aws_secrets_manager", "k8s_secret", "k8s_configmap", "other"] },
+        "is_secret": { "type": "boolean" }
+      }
+    },
+    "external_service": {
+      "description": "Third-party SaaS or API the repo talks to.",
+      "allOf": [{ "$ref": "#/$defs/entity_base" }],
+      "unevaluatedProperties": false,
+      "required": ["domain", "category"],
+      "properties": {
+        "id": { "pattern": "^external:" },
+        "domain": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", "description": "Lowercase host, no scheme or port." },
+        "vendor": { "type": "string" },
+        "category": { "enum": ["observability", "auth", "payments", "email", "messaging", "llm", "cdn", "analytics", "storage", "search", "maps", "other"] }
+      }
+    },
+    "api_spec": {
+      "allOf": [{ "$ref": "#/$defs/entity_base" }],
+      "unevaluatedProperties": false,
+      "required": ["path", "format"],
+      "properties": {
+        "id": { "pattern": "^api_spec:" },
+        "path": { "$ref": "#/$defs/repo_path" },
+        "format": { "enum": ["openapi", "swagger", "proto", "graphql_sdl", "asyncapi", "avro", "jsonschema", "wsdl", "other"] },
+        "version": { "type": "string" }
+      }
+    },
+    "relation": {
+      "description": "Typed edge. Allowed (from-type, kind, to-type) triples are enforced by rule R10.",
+      "allOf": [{ "$ref": "#/$defs/claim" }],
+      "unevaluatedProperties": false,
+      "required": ["from", "to", "kind"],
+      "properties": {
+        "from": { "$ref": "#/$defs/entity_id" },
+        "to": { "$ref": "#/$defs/entity_id" },
+        "kind": { "enum": ["contains", "imports", "depends_on", "provides", "consumes", "calls", "reads", "writes", "publishes", "subscribes", "enforces", "builds", "deploys_as", "exposes", "configured_by", "uses_external", "specified_by"] }
+      }
+    }
+  }
+}

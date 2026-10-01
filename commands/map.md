@@ -2,7 +2,7 @@
 description: Tri-lens reconnaissance of the current repo (10k strategy / 2k architecture / 500 execution).
 argument-hint: "[optional focus area]"
 ---
-First-principles reconnaissance of THIS repository. Auto-read git state, tree, build/test config, and dependency manifests before responding. Never ask for baseline context.
+First-principles reconnaissance of THIS repository. Auto-read git state, tree, build/test config, and dependency manifests before responding. Never ask for baseline context. Load the `codebase-kb-engine:doctrine` skill first.
 
 Deliver exactly three lenses, terse, no preamble:
 

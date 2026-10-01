@@ -1,0 +1,8 @@
+openapi: 3.0.3
+info: { title: Orders, version: 1.0.0 }
+servers:
+  - url: https://api.acme.example/api
+paths:
+  /orders/{id}:
+    get:
+      responses: { "200": { description: ok } }

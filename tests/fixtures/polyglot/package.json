@@ -1,0 +1,6 @@
+{
+  "name": "acme-monorepo",
+  "private": true,
+  "workspaces": ["packages/*", "apps/web"],
+  "devDependencies": { "turbo": "^2.0.0" }
+}

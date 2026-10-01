@@ -1,5 +1,7 @@
 ---
-description: Operating doctrine for this engine — tri-lens thinking, the five-step execution loop, and output discipline. Load whenever planning, analyzing, or executing work in a repository.
+name: doctrine
+description: Internal operating doctrine for codebase-kb-engine's /map, /hunt and /plan commands only. Never load for general coding, editing, or documentation tasks.
+disable-model-invocation: true
 ---
 # Operating doctrine
 

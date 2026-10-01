@@ -1,0 +1,54 @@
+{
+  "ckb_version": "0.2",
+  "repo": {"url": "https://github.com/acme/shop", "branch": "main", "commit_sha": "0123456789abcdef0123456789abcdef01234567", "generated_at": "2026-01-01T00:00:00Z"},
+  "generator": {"name": "codebase-kb-engine", "version": "0.8.0"},
+  "confidence_summary": {"confirmed": 14, "inferred": 3, "unknown": 1, "overall": "inferred"},
+  "entities": {
+    "components": [
+      {"id": "component:src/worker", "name": "worker", "module_id": "src/worker", "kind": "job", "confidence": "inferred", "provenance": [{"path": "src/worker/index.ts", "line": 1}]},
+      {"id": "component:src/api", "name": "api", "module_id": "src/api", "kind": "service", "language": "typescript", "confidence": "confirmed", "provenance": [{"path": "src/api/server.ts", "line": 3}]}
+    ],
+    "interfaces": [
+      {"id": "interface:http:provides:shop-api:POST:/orders", "name": "create order", "kind": "http", "role": "provides", "service_key": "shop-api", "http": {"method": "POST", "normalized_path": "/orders"}, "confidence": "confirmed", "provenance": [{"path": "src/api/routes.ts", "line": 12}]},
+      {"id": "interface:http:consumes:api.stripe.com:POST:/v1/charges", "name": "stripe | charge", "kind": "http", "role": "consumes", "http": {"method": "POST", "normalized_path": "/v1/charges", "host": "api.stripe.com"}, "confidence": "confirmed", "provenance": [{"path": "src/api/pay.ts", "line": 8}, {"path": "src/worker/refund.ts", "line": 4}]},
+      {"id": "interface:event:provides:kafka:order.created", "name": "order.created", "kind": "event", "role": "provides", "event": {"transport": "kafka", "topic": "order.created"}, "confidence": "inferred", "provenance": [{"path": "src/api/events.ts", "line": 5}]}
+    ],
+    "dependencies": [
+      {"id": "dependency:pkg:npm/express@package.json", "name": "express", "purl": "pkg:npm/express", "manifest_path": "package.json", "scope": "runtime", "version_constraint": "^4.19.0", "resolved_version": "4.19.2", "source": "registry", "confidence": "confirmed", "provenance": [{"path": "package.json", "line": 9}]},
+      {"id": "dependency:pkg:npm/jest@package.json", "name": "jest", "purl": "pkg:npm/jest", "manifest_path": "package.json", "scope": "test", "source": "registry", "confidence": "confirmed", "provenance": [{"path": "package.json", "line": 14}]}
+    ],
+    "datastores": [
+      {"id": "datastore:postgres:DATABASE_URL:public.orders", "name": "orders", "engine": "postgres", "instance_key": "DATABASE_URL", "schema": "public", "table": "orders", "access": "readwrite", "confidence": "confirmed", "provenance": [{"path": "migrations/001_orders.sql", "line": 1}]}
+    ],
+    "business_rules": [
+      {"id": "business_rule:order-total-positive", "name": "Order total must be positive", "statement": "Orders with total <= 0 are rejected.", "confidence": "confirmed", "provenance": [{"path": "src/api/validate.ts", "line": 21}]},
+      {"id": "business_rule:refunds-require-admin", "name": "Refunds require admin", "statement": "Only admins may refund.", "confidence": "inferred", "provenance": [{"path": "src/api/auth.ts", "line": 30}]}
+    ],
+    "workflows": [
+      {"id": "workflow:place-order", "name": "Place order", "trigger": "POST /orders", "steps": [{"order": 1, "description": "validate"}, {"order": 2, "description": "charge"}], "confidence": "confirmed", "provenance": [{"path": "src/api/routes.ts", "line": 12}]},
+      {"id": "workflow:refund-order", "name": "Refund order", "steps": [{"order": 1, "description": "refund"}], "confidence": "unknown", "provenance": [{"path": "src/worker/refund.ts", "line": 4}]}
+    ],
+    "artifacts": [
+      {"id": "artifact:pkg:docker/acme/shop-api", "name": "shop-api image", "kind": "container_image", "purl": "pkg:docker/acme/shop-api", "manifest_path": "Dockerfile", "confidence": "confirmed", "provenance": [{"path": "Dockerfile", "line": 1}]}
+    ],
+    "services": [
+      {"id": "service:shop-api", "name": "shop-api", "service_key": "shop-api", "runtime": "k8s", "ports": [8080], "environments": ["staging", "prod"], "confidence": "confirmed", "provenance": [{"path": "deploy/k8s/deployment.yaml", "line": 4}]}
+    ],
+    "config_keys": [
+      {"id": "config:env:PORT", "name": "PORT", "source": "env", "is_secret": false, "confidence": "confirmed", "provenance": [{"path": "src/api/server.ts", "line": 5}]},
+      {"id": "config:env:DATABASE_URL", "name": "DATABASE_URL", "source": "env", "is_secret": true, "confidence": "confirmed", "provenance": [{"path": "src/db.ts", "line": 2}]},
+      {"id": "config:env:STRIPE_KEY", "name": "STRIPE_KEY", "source": "env", "is_secret": true, "confidence": "confirmed", "provenance": [{"path": "src/api/pay.ts", "line": 3}]}
+    ],
+    "external_services": [
+      {"id": "external:api.stripe.com", "name": "Stripe", "domain": "api.stripe.com", "vendor": "Stripe", "category": "payments", "confidence": "confirmed", "provenance": [{"path": "src/api/pay.ts", "line": 8}]}
+    ],
+    "api_specs": [
+      {"id": "api_spec:openapi.yaml", "name": "shop openapi", "path": "openapi.yaml", "format": "openapi", "version": "3.0.3", "confidence": "confirmed", "provenance": [{"path": "openapi.yaml", "line": 1}]}
+    ]
+  },
+  "relations": [
+    {"from": "component:src/api", "kind": "provides", "to": "interface:http:provides:shop-api:POST:/orders", "confidence": "confirmed", "provenance": [{"path": "src/api/routes.ts", "line": 12}]},
+    {"from": "component:src/api", "kind": "enforces", "to": "business_rule:order-total-positive", "confidence": "confirmed", "provenance": [{"path": "src/api/validate.ts", "line": 21}]},
+    {"from": "component:src/api", "kind": "deploys_as", "to": "service:shop-api", "confidence": "inferred", "provenance": [{"path": "deploy/k8s/deployment.yaml", "line": 4}]}
+  ]
+}

@@ -1,5 +1,7 @@
 ---
-description: Leverage scoring rubric. Use whenever prioritizing, ranking, or choosing between initiatives, tasks, or designs.
+name: leverage
+description: Leverage-scoring rubric used only by codebase-kb-engine's /hunt command. Never load for general prioritization outside that command.
+disable-model-invocation: true
 ---
 # Leverage scoring
 

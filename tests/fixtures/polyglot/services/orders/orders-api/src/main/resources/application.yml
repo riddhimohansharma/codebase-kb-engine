@@ -1,0 +1,6 @@
+server:
+  servlet:
+    context-path: /api
+spring:
+  datasource:
+    url: ${ORDERS_DB_URL}

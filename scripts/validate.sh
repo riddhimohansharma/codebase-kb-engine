@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # validate.sh — check a ckb.json against the vendored CKB spec: JSON Schema (structural) + semantic rules R1–R6.
-# Usage: validate.sh <ckb.json>
+# Usage: validate.sh <ckb.json>   (spec version chosen from the artifact's ckb_version; v0.1 and v0.2 vendored)
 # Last stdout line: RESULT=PASS|FAIL STRUCTURAL=pass|fail|skipped SEMANTIC=pass|fail
 # Exit: 0 PASS · 1 FAIL · 2 usage/unreadable. Structural check needs `uvx` (uv); if absent it is reported as skipped, never as pass.
 set -uo pipefail
@@ -19,7 +19,7 @@ else
   echo "  note: uvx not found — structural (JSON Schema) check skipped. Install uv: https://docs.astral.sh/uv/"
 fi
 
-viol="$(jq -r -f "$SPEC/semantic.jq" "$f" | jq -r '.[]')"
+viol="$(jq -r -L "$SPEC" -f "$SPEC/semantic.jq" "$f" | jq -r '.[]')"
 if [ -z "$viol" ]; then semantic=pass; else semantic=fail; printf '%s\n' "$viol" | sed 's/^/  semantic: /'; fi
 
 result=PASS; { [ "$structural" = fail ] || [ "$semantic" = fail ]; } && result=FAIL

@@ -30,3 +30,7 @@ jobs:
         run: tests/guard.test.sh
       - name: Conformance (finalize, normalize, validate)
         run: tests/finalize.test.sh
+      - name: Docs quality (lint, parity, front-matter, reference)
+        run: tests/docs.test.sh
+      - name: Recon (inventory, coverage)
+        run: tests/inventory.test.sh

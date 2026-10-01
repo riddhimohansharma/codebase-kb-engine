@@ -1,8 +1,8 @@
 {
   "name": "codebase-kb-engine",
   "displayName": "Codebase KB Engine",
-  "version": "0.7.0",
-  "description": "Generate a verifiable knowledge base inside any repository at ckb/, ready to commit: five human-readable docs (architecture, workflows, business rules, system context) plus a machine-readable ckb.json in the open CKB v0.1 format, with path:line provenance and confidence on every claim. Skips regeneration when the committed KB is still fresh. Works on a local repo or a repo URL. A fail-closed, session-scoped gate allows writes only to ckb/.",
+  "version": "0.8.0",
+  "description": "Generate a verifiable, graph-ready knowledge base inside any repository at ckb/, ready to commit: eight human docs (architecture with C4 views, workflows, business rules, system context, operations, security & data, decisions) plus a generated reference and a machine-readable ckb.json in the open CKB v0.2 format \u2014 purl-identified dependencies, what the repo publishes (artifacts, services), interfaces with call targets, datastores, config names, external services and API specs, every claim with verified path:line provenance and confidence, plus a coverage report. Polyglot (30+ manifest types, 20+ web frameworks). Skips when the committed KB is fresh. A fail-closed, session-scoped gate allows writes only to ckb/.",
   "author": {
     "name": "Riddhi Mohan Sharma",
     "url": "https://github.com/riddhimohansharma"
@@ -11,12 +11,17 @@
   "repository": "https://github.com/riddhimohansharma/codebase-kb-engine",
   "license": "MIT",
   "keywords": [
-    "codebase",
-    "documentation",
     "architecture",
-    "knowledge-base",
     "business-rules",
+    "c4",
+    "ckb",
+    "codebase",
+    "dependency-graph",
+    "documentation",
+    "knowledge-base",
+    "purl",
     "read-only",
-    "ckb"
+    "sbom",
+    "service-catalog"
   ]
 }

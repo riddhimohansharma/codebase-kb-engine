@@ -2,6 +2,55 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](https://semver.org/). The plugin `name` `codebase-kb-engine` is permanent.
 
+## [0.8.0] — 2026-10-01
+
+Expert-panel review (knowledge-graph, polyglot static analysis, knowledge-base practice, plugin reliability): 54 findings, all P0/P1 fixed.
+
+### Security (P0)
+- **Guard bypasses closed:**
+  - `git -C … commit/checkout`, `git -c` config and exec overrides, `--output`/`--ext-diff`/`-O`.
+  - `find -delete`/`-exec`, `sort -o`, sed `w`/`e`, awk `system()`, `tree -o`, `yq -i`; `xxd` removed from the allowlist.
+  - Environment overrides that run code: `GIT_*`, `PAGER`, `LD_PRELOAD`/`DYLD_*`, `PATH`, `BASH_ENV`, …
+  - Arming now works without jq.
+- **Arming is scoped to `/kb` and `/kb-validate`.** `/map`, `/hunt` and `/plan` (and other plugins' `/plan`) no longer lock the session.
+- The `doctrine` and `leverage` skills are no longer loaded in ordinary sessions (`disable-model-invocation`).
+- The hook parses its input in one jq pass, and pure-read tools exit early.
+
+### Graph and dependency completeness (CKB v0.2)
+- Emits **CKB v0.2**:
+  - **purl** dependency identity, one entity per manifest declaration, with `source` (`workspace` and `path` for monorepo internals).
+  - **What the repo provides:** artifacts it publishes and services it deploys.
+  - Config keys (names only, `is_secret`), external SaaS services, API spec files, repo profile, coverage.
+- Outbound call targets are part of interface IDs, so calls to different services no longer merge.
+- IDs come from the spec's shared `derive.jq`. Relations are restricted to the spec's allowed triples, and role mismatches are auto-corrected.
+
+### Polyglot coverage
+- `scripts/inventory.sh` (deterministic, about 0.5 s per repo) inventories manifests, lockfiles, routes, events, ORMs/datastores, migrations, IaC, CI, config and API specs across 30+ ecosystems. It detects workspaces and excludes generated and vendored code. `scripts/coverage.sh` compares the inventory with what the KB cites, and an uncited manifest keeps the KB `incomplete`.
+- The normalizer handles:
+  - route syntaxes for Ruby `#{}`, Django `(?P<>)`, Laravel `{id?}`, Gin `*path`, Axum `{*rest}`, JAX-RS `{ id }`, nginx modifiers and regex groups, Go `%d`, and Kotlin/Dart `$var`;
+  - literal ids and UUIDs, which become `{id}`;
+  - multi-method routes, which become one entity per method;
+  - outbound hosts, normalized;
+  - event topics in SQS-URL, ARN and Pub/Sub path forms;
+  - ORM quoting and default schemas;
+  - 25+ ecosystems' manifests (Gradle catalogs, `Directory.Packages.props`, `pubspec`, `mix.exs`, `.rockspec`, Dockerfile `FROM`, Actions `uses:`, …) with per-ecosystem name canonicalization.
+- Scouts:
+  - The `scout` agent (sonnet) has a full polyglot checklist: route prefix composition for 20+ frameworks, event placeholders, the RPC/GraphQL convention, ORM table naming. It returns JSON fragments.
+  - New `scout-inventory` (haiku) for the mechanical buckets.
+  - `/kb` runs up to 8 scouts in parallel, with a retry policy. Drafts can be split into `ckb/ckb.draft.d/`.
+
+### Knowledge-base practice
+- **8 docs**, adding `05-operations.md`, `06-security-and-data.md` and `07-decisions.md`, plus a generated `90-reference.md`. Required headings are arc42/C4/Diátaxis-aligned, with C4 context, container and component diagrams, an ERD and per-workflow sequence diagrams.
+- `scripts/lint-docs.sh` (sections, diagrams, confidence tags, size, secrets, anchors, docs/JSON parity), `scripts/docmeta.sh` (deterministic YAML front-matter, local→final id rewrite, stable anchors) and `scripts/reference.sh`.
+- The `kb` skill is renamed `kb-docs` (with frontmatter `name`), and `/kb` loads both skills explicitly.
+- **Claim audit:** the `auditor` agent (haiku) checks up to 15 confirmed claims against their source lines before finalize.
+
+### Changed
+- `repo.url` is canonical (`https://host/owner/repo`; ssh/scp forms converted, `.git`, ports and credentials stripped).
+
+### Tests
+- guard 125, finalize 71, docs 98, inventory 50, all passing on jq 1.6, 1.7 and 1.8. CI runs all four suites.
+
 ## [0.7.0] — 2026-09-30
 
 ### Changed

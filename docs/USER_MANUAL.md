@@ -1,6 +1,6 @@
 # Codebase KB Engine: User Manual
 
-Version 0.7.0 · CKB format v0.1 (draft)
+Version 0.8.0 · CKB format v0.2 (draft)
 
 1. [What it does](#1-what-it-does)
 2. [Concepts](#2-concepts)
@@ -23,8 +23,13 @@ Version 0.7.0 · CKB format v0.1 (draft)
 
 Codebase KB Engine reads a repository and writes a **knowledge base into the repo itself**, at `ckb/`, for you to commit alongside the code:
 
-- **Five documents for people**: overview, technical architecture, functional workflows, business rules, and system context and gaps, with mermaid diagrams.
-- **One artifact for machines**: `ckb.json`, in the open [CKB format](https://github.com/riddhimohansharma/codebase-kb-spec). Tools can use it to answer questions across many repositories, such as "who calls this endpoint?", "which repos depend on this package?" or "who writes this table?"
+- **Eight documents for people**: overview; technical architecture with C4 views and an ERD; functional workflows with sequence diagrams; business rules; system context and gaps; operations; security and data; decisions. Plus a generated reference.
+- **One artifact for machines**: `ckb.json`, in the open [CKB v0.2 format](https://github.com/riddhimohansharma/codebase-kb-spec), built so tools ingesting many repositories can build a **complete cross-repo graph and dependency map**. It records:
+  - what each repo depends on, as purl;
+  - what it **publishes** (packages, images, charts) and **deploys** (services);
+  - which endpoints and topics it serves or calls, and on which target;
+  - which tables it touches;
+  - which config keys (names only) and external SaaS it uses.
 
 Every claim cites the source line it came from (`path:line`) and is labelled **confirmed**, **inferred** or **unknown**. Citations are **checked against the real files**: a claim whose file or line doesn't exist is downgraded to `unknown`. Secret values from repo config that end up in the KB are **redacted** before anything is written. Generation is read-only: the plugin writes nothing except `ckb/`, never edits source, and never commits.
 
@@ -78,22 +83,23 @@ Open `ckb/README.md` on GitHub to browse the KB. Run `/kb` again at any time: if
 ### `/kb [--force] [focus]`: generate the KB for the current repo
 
 **Steps:**
-1. Resolves `<repo-root>/ckb/` and refuses unsafe locations (see [§12](#12-troubleshooting)).
-2. **Checks freshness.** If the committed KB still describes the source, it stops and writes nothing. `--force` regenerates anyway.
-3. Warns if you have uncommitted changes outside `ckb/`.
-4. Analyses the repo read-only, with `ckb/` excluded.
-5. Writes the 5 docs and a draft artifact.
-6. Finalizes: derives IDs, normalizes join keys, merges duplicates, drops invalid citations, validates, and writes `ckb.json`, `manifest.json`, `README.md` and `.gitattributes`.
-7. Prints `STATUS=…`, a summary, the top 3 unknowns to verify, and the **commit command**. It does not run that command.
+1. Loads the `kb-docs` and `ckb-contract` skills, then resolves `<repo-root>/ckb/` and refuses unsafe locations (see [§12](#12-troubleshooting)).
+2. **Checks freshness.** If the committed KB still describes the source, it stops and writes nothing; `--force` regenerates anyway. A stale KB is refreshed **incrementally**: changed files get priority, and existing names are kept.
+3. **Inventories the repo** deterministically, in about 0.5 s. It finds every manifest, lockfile, route file, event, ORM model, migration, IaC file, CI file, config file and API spec, with generated and vendored code excluded.
+4. **Runs up to 8 scouts in parallel.** One mechanical `scout-inventory` (haiku) handles dependencies, artifacts, services, config and API specs; one `scout` (sonnet) per area handles routes, calls, events, datastores, rules and workflows. Each returns a JSON fragment. Failed scopes are retried once; anything still missing is listed as `[?] not scanned` and never guessed.
+5. Writes the 8 docs.
+6. **Audits up to 15 confirmed claims** against their source lines, using the `auditor` agent (haiku). Unsupported claims are downgraded.
+7. **Finalizes:** merges fragments, computes coverage, derives IDs, normalizes, lints the docs, checks that the docs and JSON agree, injects front-matter and anchors, generates `90-reference.md`, redacts secrets, validates, and writes the outputs. Coverage gaps trigger one targeted re-scan.
+8. Prints `STATUS=…`, coverage, the confidence and audit summary, the top 3 open questions, and the **commit command**. It does not run that command.
 
-**Focus:** `/kb billing` still writes all five documents but weights them toward that subsystem.
+**Focus:** `/kb billing` still writes all eight documents but weights them toward that subsystem.
 
 **Status values:**
 
 | Status | Meaning | What to do |
 |---|---|---|
 | `complete` | All outputs present, artifact valid | Commit `ckb/` |
-| `incomplete` | A document is missing | Re-run `/kb --force` |
+| `incomplete` | A document is missing or fails lint, the docs and JSON disagree, or a manifest isn't covered | Read `manifest.json` → `validation.docs` and `warnings`, then re-run `/kb --force` |
 | `unverified` | Schema check skipped (`uv` not installed) | Install uv and re-run |
 | `invalid` | The candidate failed validation after 2 repair attempts. It is saved as `ckb.json.rejected`, and a previous good `ckb.json` is kept | See `manifest.json` → `validation.messages`, and report it if it recurs |
 
@@ -126,46 +132,53 @@ This releases the gate for the current session. Only a message **you** type can 
 - `/hunt` ranks improvement initiatives by Leverage = (Value × Durability × Confidence) / Effort.
 - `/plan` produces a five-step change plan and a unified diff **as text**.
 
-All three are read-only and arm the gate.
+All three are read-only by instruction. They **don't** arm the gate, because names like `/plan` collide with other plugins' commands.
 
 ## 6. Output reference
 
 ```
 ckb/
-├── README.md                       index (deterministic; safe to commit)
-├── 00-overview.md                  summary, glossary, macro context
-├── 01-technical-architecture.md    components, data model, interfaces, dependencies, deployment
-├── 02-functional-workflows.md      capabilities, actors, workflows, state machines
-├── 03-business-rules.md            rule catalog, enforcement sites, traceability
-├── 04-system-context-and-gaps.md   system map, contracts, risks, unknowns
-├── ckb.json                        CKB v0.1 artifact
-├── manifest.json                   job record
-├── .gitattributes                  marks the directory linguist-generated (collapsed in PR diffs)
-├── .gitignore                      keeps transient files (draft, rejected candidate) and OS junk out of commits
+├── README.md                       index with coverage (deterministic; safe to commit)
+├── 00-overview.md                  summary, glossary, ownership, macro context
+├── 01-technical-architecture.md    C4 containers/components, ERD, interfaces, dependencies, configuration, deployment
+├── 02-functional-workflows.md      capabilities, actors, workflows (sequence diagrams), state machines
+├── 03-business-rules.md            rule catalog (BR-<slug>), enforcement sites, traceability
+├── 04-system-context-and-gaps.md   C4 context, contracts exposed/consumed, risks, open questions (Q-<slug>)
+├── 05-operations.md                build, run, test, deploy, observability, alerts, rollback
+├── 06-security-and-data.md         trust boundaries, auth, data classification, secrets (names only), findings
+├── 07-decisions.md                 ADR-lite decision log (evidence-based)
+├── 90-reference.md                 generated tables from ckb.json
+├── ckb.json                        CKB v0.2 artifact
+├── manifest.json                   job record: status, coverage, validation, warnings
+├── .gitattributes / .gitignore     generated-file marking; transient files never committed
 └── .ckb-output                     static marker the safety gate recognises
 ```
 
-### `ckb.json`
+Every doc starts with **deterministic YAML front-matter** (`ckb_doc`, audience, Diátaxis type, `source_commit`, confidence counts, `freshness_cmd`). Every rule, workflow, component and interface heading has a stable anchor and a `` `ckb:<entity id>` `` marker, so humans and RAG systems can cite a section and jump to the matching JSON entity.
 
-| Field | Contents |
+### `ckb.json` (CKB v0.2)
+
+| Collection | Key fields (join keys in **bold**) |
 |---|---|
-| `ckb_version` | `"0.1"` |
-| `repo` | `url` (credentials stripped), `branch`, `commit_sha` (the **analysed** commit), `generated_at` |
-| `generator` | `{name: "codebase-kb-engine", version}` |
-| `confidence_summary` | Counts per level plus an `overall` roll-up |
-| `entities.components` | Modules and services: `module_id`, `kind`, `language` |
-| `entities.interfaces` | HTTP routes (`method`, `normalized_path`), events (`transport`, `topic`), RPC, CLI and library, each with `role` `provides` or `consumes` |
-| `entities.dependencies` | Direct manifest dependencies as `package_key` (`npm:…`, `pypi:…`, `maven:g:a`, `go:…`, `cargo:…`, `nuget:…`, `gem:…`, `other:…`), with `scope`. npm and cargo names are lowercased, pypi follows PEP 503, and versions and extras are stripped |
-| `entities.datastores` | `engine`, `schema`, `table`, `access` |
-| `entities.business_rules` | `statement` and `applies_to`. Names match `03-business-rules.md` |
-| `entities.workflows` | Ordered `steps` pointing at entities. Names match `02-functional-workflows.md` |
-| `relations` | Edges within the repo (`calls`, `reads`, `writes`, `publishes`, …) |
+| `repo`, `repo_profile` | **`url`** (canonical `https://host/owner/repo`), branch, **`commit_sha`** (the analysed commit); languages, frameworks, build tools, license, owners |
+| `components` | **`module_id`**, kind, language |
+| `interfaces` | http: **method + normalized_path** + **`service_key`** (provides) or **`http.host`** (consumes); event: **transport + topic**; rpc: **protocol + service/method**; websocket; cli and library `symbol` |
+| `dependencies` | **`purl`** (versionless), `manifest_path`, scope, version_constraint, resolved_version, `source` (registry, workspace, path, git, vendored) |
+| `artifacts` | What the repo **publishes**: **`purl`**, kind (package, container_image, helm_chart, binary, …), version |
+| `services` | Deployable units: **`service_key`**, runtime, ports, environments |
+| `datastores` | **engine + instance_key + schema + table**, access |
+| `config_keys` | **source + name** (never values), `is_secret` |
+| `external_services` | **`domain`**, vendor, category |
+| `api_specs` | **`path`**, format (openapi, proto, graphql_sdl, asyncapi, …) |
+| `business_rules`, `workflows` | statement and steps. Names match `03` and `02` |
+| `relations` | Allowed triples only: `provides`, `consumes`, `depends_on`, `builds`, `deploys_as`, `exposes`, `reads`, `writes`, `publishes`, `subscribes`, `configured_by`, `uses_external`, `specified_by`, `enforces`, `contains`, `imports` |
+| `coverage` | Per bucket: found, cited, and the uncited files |
 
-**Entity IDs are deterministic**, for example `interface:http:provides:GET:/orders/{order_id}` or `dependency:npm:express`. Regenerating at the same commit changes only `generated_at`.
+**Entity IDs are deterministic**, computed by the spec's `derive.jq`. Examples: `interface:http:consumes:payments:POST:/payments`, `dependency:pkg:npm/express@package.json`, `artifact:pkg:docker/ghcr.io/acme/orders`, `datastore:postgres:DATABASE_URL:users`. Regenerating at the same commit changes only `generated_at`.
 
 ### `manifest.json`
 
-`ckb_version` · `job` (id, mode, timestamps, generator) · `status` (`complete`, `incomplete`, `invalid` or `unverified`) · `repo` (plus `dirty_worktree`) · `outputs` for the 5 docs and `ckb.json` (file, sha256 or `null`, bytes, present) · `validation` (structural, semantic, messages) · `confidence_summary` · `entity_counts` · `warnings` (for example, claims downgraded to `unknown` for lack of a valid citation) · `token_usage` (always `null`) and `token_usage_note` (see [§9](#9-automation-headless-and-ci)).
+`ckb_version` · `job` · `status` (`complete`, `incomplete`, `invalid` or `unverified`) · `repo` (plus `dirty_worktree`) · `outputs` for the 8 docs, `90-reference.md` and `ckb.json` (sha256, bytes, present) · `validation` (structural, semantic, messages, **`docs`** lint violations) · **`coverage`** · `confidence_summary` · `entity_counts` · `warnings` · `token_usage` (null) and `token_usage_note`.
 
 ## 7. Freshness and committing the KB
 
@@ -243,7 +256,7 @@ The freshness check is what keeps this cheap at scale: unchanged repos cost one 
 ## 10. Safety model
 
 **When the gate is armed:**
-- Typing `/kb`, `/kb-validate`, `/map`, `/hunt` or `/plan` arms it.
+- Typing `/kb` or `/kb-validate` (also namespaced as `/codebase-kb-engine:…`) arms it. Other plugins' commands, and `/map`, `/hunt` and `/plan`, never do.
 - The first run of any plugin script arms it.
 - The local wrappers arm it for the whole session by setting `CKB_ENFORCE=always`.
 

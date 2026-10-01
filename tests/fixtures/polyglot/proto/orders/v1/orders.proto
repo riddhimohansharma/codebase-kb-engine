@@ -1,0 +1,9 @@
+syntax = "proto3";
+package acme.orders.v1;
+
+service OrderService {
+  rpc GetOrder (GetOrderRequest) returns (Order);
+}
+
+message GetOrderRequest { int64 id = 1; }
+message Order { int64 id = 1; }

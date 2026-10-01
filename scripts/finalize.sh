@@ -6,6 +6,7 @@
 # Status: complete only when BOTH schema (uvx) and semantic checks pass; schema skipped => unverified.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+DOCS="00-overview.md 01-technical-architecture.md 02-functional-workflows.md 03-business-rules.md 04-system-context-and-gaps.md 05-operations.md 06-security-and-data.md 07-decisions.md"
 die(){ code="$1"; shift; printf '%s\n' "$@" >&2; exit "$code"; }
 repo="${1:-}"; kb="${2:-}"; shift 2 2>/dev/null || die 2 "usage: finalize.sh <repo_root> <kb_dir> [opts]"
 mode=local; url=""; branch=""; started=""
@@ -18,7 +19,18 @@ done
 [ -d "$repo" ] || die 2 "repo_root not a dir: $repo"
 [ -f "$kb/.ckb-output" ] || die 2 "REFUSED: '$kb' is not a CKB output dir (no .ckb-output marker; run resolve-kb.sh first)"
 draft="$kb/ckb.draft.json"
-[ -f "$draft" ] || die 2 "missing draft: $draft"
+# large repos: scouts write one fragment per area/collection into ckb.draft.d/. When fragments exist they are the ONLY
+# source (a stale merged ckb.draft.json from a failed run must never override corrected fragments).
+if [ -d "$kb/ckb.draft.d" ] && ls "$kb"/ckb.draft.d/*.json >/dev/null 2>&1; then
+  for f in "$kb"/ckb.draft.d/*.json; do jq -e . "$f" >/dev/null 2>&1 || die 1 "draft fragment is not valid JSON: $f"; done
+  cat "$kb"/ckb.draft.d/*.json | jq -s '
+    reduce .[] as $x ({entities: {}, relations: [], repo_profile: {}};
+      .entities = (reduce (($x.entities // {}) | to_entries[]) as $kv (.entities; .[$kv.key] = ((.[$kv.key] // []) + ($kv.value // []))))
+      | .relations += ($x.relations // [])
+      | .repo_profile = (.repo_profile + ($x.repo_profile // {})))' > "$kb/ckb.draft.json.merged" \
+    && mv -f "$kb/ckb.draft.json.merged" "$draft"
+fi
+[ -f "$draft" ] || die 2 "missing draft: $draft (or $kb/ckb.draft.d/*.json)"
 jq -e . "$draft" >/dev/null 2>&1 || die 1 "draft is not valid JSON: $draft"
 
 git -C "$repo" rev-parse HEAD >/dev/null 2>&1 || die 2 "REFUSED: '$repo' is not a git work tree with a commit; CKB requires commit_sha."
@@ -31,6 +43,12 @@ extra_warn=""; [ -n "$branch" ] || { branch=HEAD; extra_warn="detached HEAD: rep
 if [ -z "$url" ]; then url="$(git -C "$repo" remote get-url origin 2>/dev/null || true)"; fi
 [ -n "$url" ] || url="file://$(cd "$repo" && pwd -P)"
 url="$(printf '%s' "$url" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/@]*@#\1#')"   # never persist userinfo/tokens
+# canonical repo identity (CKB v0.2): https://<lowercase-host>/<path>, no .git, no port, no trailing slash; ssh/scp forms -> https
+case "$url" in
+  file://*) : ;;
+  *) url="$(printf '%s' "$url" | sed -E 's#^[A-Za-z0-9._-]+@([^:/]+):#https://\1/#; s#^(ssh|git|git\+ssh|https?)://#https://#; s#^https://([^/@]*@)#https://#; s#^https://([^/:]+):[0-9]+/#https://\1/#; s#\.git/?$##; s#/+$##')"
+     host="$(printf '%s' "$url" | sed -E 's#^https://([^/]+).*#\1#' | tr 'A-Z' 'a-z')"; url="https://$host/${url#https://*/}" ;;
+esac
 dirty=false; [ -n "$(git -C "$repo" status --porcelain -- . ':(exclude)ckb' ':(exclude,glob)**/.DS_Store' ':(exclude,glob)**/Thumbs.db' ':(exclude,glob)**/desktop.ini' 2>/dev/null | head -1)" ] && dirty=true   # the KB itself never counts
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 gen_ver="$(jq -r .version "$ROOT/.claude-plugin/plugin.json")"
@@ -60,11 +78,26 @@ grep -Fxf "$tmpd/files" "$tmpd/cited" | while IFS= read -r f; do [ -f "$repo/$f"
   | jq -Rn '[inputs | split("\t") | {key: .[0], value: (.[1] | tonumber)}] | from_entries' > "$tmpd/lines.json"
 
 out="$(jq -c --argjson repo "$repo_obj" --argjson generator "$gen_obj" --argjson roots "$roots" --argjson lines "$(cat "$tmpd/lines.json")" \
-        -f "$ROOT/scripts/normalize.jq" "$draft")" \
+        -L "$ROOT/spec/v0.2" -f "$ROOT/scripts/normalize.jq" "$draft")" \
   || die 1 "normalize failed on draft (jq error above)"
 [ -n "$extra_warn" ] && out="$(printf '%s' "$out" | jq -c --arg w "$extra_warn" '.warnings += [$w]')"
 # Write the candidate first; it replaces ckb.json only if it passes validation.
 printf '%s' "$out" | jq '.artifact' > "$kb/ckb.json.candidate"
+printf '%s' "$out" | jq '.idmap // {}' > "$tmpd/idmap.json"
+
+# Coverage: deterministic inventory of the repo vs. what the draft cites (completeness gate) + repo_profile languages
+cov_uncited_manifests=""
+if [ -x "$ROOT/scripts/inventory.sh" ] && [ -x "$ROOT/scripts/coverage.sh" ] && "$ROOT/scripts/inventory.sh" "$repo" > "$tmpd/inventory.json" 2>"$tmpd/inv.err"; then
+  "$ROOT/scripts/coverage.sh" "$tmpd/inventory.json" "$kb/ckb.json.candidate" > "$tmpd/coverage.json" 2>>"$tmpd/inv.err" || : > "$tmpd/coverage.json"
+  if jq -e 'type == "object"' "$tmpd/coverage.json" >/dev/null 2>&1; then
+    jq --slurpfile cov "$tmpd/coverage.json" --slurpfile inv "$tmpd/inventory.json" '
+      .coverage = $cov[0]
+      | if (.repo_profile.languages // []) == [] and (($inv[0].languages // []) | length) > 0
+        then .repo_profile = ({languages: [], frameworks: [], build_tools: [], owners: []} + (.repo_profile // {}) + {languages: [$inv[0].languages[] | {name, files}]})
+        else . end' "$kb/ckb.json.candidate" > "$tmpd/cand" && mv -f "$tmpd/cand" "$kb/ckb.json.candidate"
+    cov_uncited_manifests="$(jq -r '.buckets.manifests.uncited // [] | .[]' "$tmpd/coverage.json")"
+  fi
+fi
 
 vout="$("$ROOT/scripts/validate.sh" "$kb/ckb.json.candidate")"; vrc=$?
 last="$(printf '%s\n' "$vout" | tail -1)"
@@ -75,7 +108,30 @@ status=complete; [ $vrc -eq 0 ] || status=invalid
 if [ "$status" = invalid ]; then mv -f "$kb/ckb.json.candidate" "$kb/ckb.json.rejected"; else mv -f "$kb/ckb.json.candidate" "$kb/ckb.json"; rm -f "$kb/ckb.json.rejected"; fi
 art="$kb/ckb.json"; [ "$status" = invalid ] && art="$kb/ckb.json.rejected"
 
-outputs="$(cd "$kb" && for f in 00-overview.md 01-technical-architecture.md 02-functional-workflows.md 03-business-rules.md 04-system-context-and-gaps.md ckb.json; do
+# Docs pipeline (only when an artifact was accepted): front-matter + local->final id rewrite, generated reference, lint + parity
+docs_lint='{}'; docmeta_out=""
+if [ "$status" != invalid ]; then
+  docmeta_out="$("$ROOT/scripts/docmeta.sh" "$kb" "$kb/ckb.json" --idmap "$tmpd/idmap.json" 2>&1)" || true
+  "$ROOT/scripts/reference.sh" "$kb/ckb.json" > "$kb/90-reference.md.tmp" 2>/dev/null && mv -f "$kb/90-reference.md.tmp" "$kb/90-reference.md" || rm -f "$kb/90-reference.md.tmp"
+fi
+
+# Secret redaction (the KB is committed): any secret-looking VALUE from repo config found verbatim in the KB -> [REDACTED]
+redact_values > "$tmpd/secrets"
+while IFS= read -r v; do
+  [ "${#v}" -ge 12 ] || continue
+  for f in "$kb"/*.md "$kb"/ckb.json; do
+    [ -f "$f" ] && grep -qF -- "$v" "$f" && { V="$v" perl -0pi -e 's/\Q$ENV{V}\E/[REDACTED]/g' "$f"; redacted=$((redacted+1)); }
+  done
+done < "$tmpd/secrets"
+
+if [ "$status" != invalid ]; then
+  docs_lint="$("$ROOT/scripts/lint-docs.sh" "$kb" --parity "$kb/ckb.json" 2>/dev/null)"; lrc=$?
+  printf '%s' "$docs_lint" | jq -e . >/dev/null 2>&1 || docs_lint='{"lint":["lint-docs produced no JSON"]}'
+  [ $lrc -ne 0 ] && [ "$status" != invalid ] && status=incomplete
+fi
+[ -n "$cov_uncited_manifests" ] && [ "$status" != invalid ] && status=incomplete   # dependency map must be complete
+
+outputs="$(cd "$kb" && for f in $DOCS 90-reference.md ckb.json; do
   if [ -f "$f" ]; then printf '%s\t%s\t%s\n' "$f" "$(shasum -a 256 "$f" | cut -d' ' -f1)" "$(wc -c < "$f" | tr -d ' ')"; else printf '%s\tMISSING\t0\n' "$f"; fi; done)"
 missing="$(printf '%s\n' "$outputs" | awk -F'\t' '$2=="MISSING"{print $1}')"
 [ -n "$missing" ] && [ "$status" != invalid ] && status=incomplete
@@ -84,54 +140,52 @@ job_id="$(printf '%s|%s|%s' "$url" "$sha" "$now" | shasum -a 256 | cut -c1-16)"
 jq -n --arg id "$job_id" --arg mode "$mode" --arg started "${started:-$now}" --arg finished "$now" --arg status "$status" \
   --argjson repo "$repo_obj" --argjson generator "$gen_obj" --argjson dirty "$dirty" \
   --arg structural "$structural" --arg semantic "$semantic" --arg vout "$vout" --arg outputs "$outputs" \
-  --argjson norm "$out" --slurpfile art "$art" '
-  {ckb_version: "0.1",
+  --argjson norm "$out" --slurpfile art "$art" --argjson lint "$docs_lint" --arg redacted "$redacted" --arg uncited "$cov_uncited_manifests" '
+  {ckb_version: ($art[0].ckb_version // "0.2"),
    job: {id: $id, mode: $mode, started_at: $started, finished_at: $finished, generator: $generator},
    status: $status,
    repo: ($repo + {dirty_worktree: $dirty}),
    outputs: [$outputs | split("\n")[] | select(. != "") | split("\t") | {file: .[0], sha256: (if .[1] == "MISSING" then null else .[1] end), bytes: (.[2] | tonumber), present: (.[1] != "MISSING")}],
    validation: {structural: $structural, semantic: $semantic,
-                messages: [$vout | split("\n")[] | select(startswith("  ")) | ltrimstr("  ")]},
+                messages: [$vout | split("\n")[] | select(startswith("  ")) | ltrimstr("  ")],
+                docs: ($lint | with_entries(select((.value | type) == "array" and (.value | length) > 0)))},
+   coverage: ($art[0].coverage // null),
    confidence_summary: $art[0].confidence_summary,
    entity_counts: (($art[0].entities | map_values(length)) + {relations: ($art[0].relations // [] | length)}),
-   warnings: $norm.warnings,
+   warnings: ($norm.warnings
+              + (if ($redacted | tonumber) > 0 then ["redacted \($redacted) occurrence(s) of secret values copied from repo config into the KB"] else [] end)
+              + [$uncited | split("\n")[] | select(. != "") | "coverage: manifest not cited by any dependency: \(.)"]),
    token_usage: null,
    token_usage_note: "Not observable from inside the session. Headless runs: read usage from `claude -p --output-format json`."}' > "$kb/manifest.json.tmp" \
   && mv -f "$kb/manifest.json.tmp" "$kb/manifest.json" || die 1 "manifest generation failed (jq error above)"
 
-redact_values > "$tmpd/secrets"
-while IFS= read -r v; do
-  [ "${#v}" -ge 12 ] || continue
-  for f in "$kb"/*.md "$kb"/ckb.json; do
-    [ -f "$f" ] && grep -qF -- "$v" "$f" && { V="$v" perl -0pi -e 's/\Q$ENV{V}\E/[REDACTED]/g' "$f"; redacted=$((redacted+1)); }
-  done
-done < "$tmpd/secrets"
-if [ "$redacted" -gt 0 ]; then
-  jq --arg n "$redacted" '.warnings += ["redacted \($n) occurrence(s) of secret values copied from repo config into the KB"]' "$kb/manifest.json" > "$tmpd/m" && mv "$tmpd/m" "$kb/manifest.json"
-  for f in 00-overview.md 01-technical-architecture.md 02-functional-workflows.md 03-business-rules.md 04-system-context-and-gaps.md ckb.json; do
-    [ -f "$kb/$f" ] && jq --arg f "$f" --arg h "$(shasum -a 256 "$kb/$f" | cut -d' ' -f1)" --argjson b "$(wc -c < "$kb/$f" | tr -d ' ')" '(.outputs[] | select(.file == $f)) |= (.sha256 = $h | .bytes = $b)' "$kb/manifest.json" > "$tmpd/m" && mv "$tmpd/m" "$kb/manifest.json"
-  done
-fi
-
 # Committed-KB hygiene: collapse generated files in PR diffs; deterministic human index (no timestamps).
 printf '* linguist-generated=true\n' > "$kb/.gitattributes"
-printf '# transient producer files and OS junk; never commit\nckb.draft.json\nckb.json.candidate\nckb.json.rejected\nmanifest.json.tmp\n.DS_Store\nThumbs.db\ndesktop.ini\n' > "$kb/.gitignore"
+printf '# transient producer files and OS junk; never commit\nckb.draft.json\nckb.draft.d/\nckb.json.candidate\nckb.json.rejected\nmanifest.json.tmp\n90-reference.md.tmp\n.DS_Store\nThumbs.db\ndesktop.ini\n' > "$kb/.gitignore"
 jq -r --arg status "$status" '
   "# Codebase knowledge base\n",
   "Generated by `\(.generator.name)` \(.generator.version) · CKB \(.ckb_version) · source commit `\(.repo.commit_sha[0:12])` (\(.repo.branch)) · status **\($status)**\n",
-  "| Document | Contents |", "|---|---|",
-  "| [00-overview.md](00-overview.md) | Summary, glossary, macro context |",
-  "| [01-technical-architecture.md](01-technical-architecture.md) | Components, data model, interfaces, dependencies |",
-  "| [02-functional-workflows.md](02-functional-workflows.md) | Capabilities and end-to-end workflows |",
-  "| [03-business-rules.md](03-business-rules.md) | Rule catalog with enforcement sites |",
-  "| [04-system-context-and-gaps.md](04-system-context-and-gaps.md) | System context, risks, unknowns |",
-  "| [ckb.json](ckb.json) | Machine-readable CKB artifact |\n",
-  "Claims: \(.confidence_summary.confirmed) confirmed · \(.confidence_summary.inferred) inferred · \(.confidence_summary.unknown) unknown.\n",
+  "| Document | Audience | Contents |", "|---|---|---|",
+  "| [00-overview.md](00-overview.md) | everyone | Summary, glossary, ownership, macro context |",
+  "| [01-technical-architecture.md](01-technical-architecture.md) | engineers, architects | C4 containers and components, data model, interfaces, dependencies, configuration |",
+  "| [02-functional-workflows.md](02-functional-workflows.md) | product, engineers | Capabilities and end-to-end workflows |",
+  "| [03-business-rules.md](03-business-rules.md) | product, QA | Rule catalog with enforcement sites |",
+  "| [04-system-context-and-gaps.md](04-system-context-and-gaps.md) | architects | C4 system context, contracts, risks, open questions |",
+  "| [05-operations.md](05-operations.md) | ops, on-call | Build, run, test, deploy, observe, roll back |",
+  "| [06-security-and-data.md](06-security-and-data.md) | security | Trust boundaries, auth, data classification, secrets by name |",
+  "| [07-decisions.md](07-decisions.md) | architects | Decision log (ADR-lite, evidence-based) |",
+  "| [90-reference.md](90-reference.md) | everyone, tools | Generated tables from ckb.json |",
+  "| [ckb.json](ckb.json) | tools | Machine-readable CKB artifact |\n",
+  "Claims: \(.confidence_summary.confirmed) confirmed · \(.confidence_summary.inferred) inferred · \(.confidence_summary.unknown) unknown.",
+  (if .coverage then "Coverage: " + ([.coverage.buckets | to_entries[] | select(.value.found > 0) | "\(.key) \(.value.cited)/\(.value.found)"] | join(" · ")) + ".\n" else "" end),
   "**Freshness:** this KB is current while nothing outside `ckb/` has changed since the source commit (`git diff --quiet \(.repo.commit_sha[0:12]) HEAD -- . \u0027:(exclude)ckb\u0027`). Regenerate with `/kb`."
-' "$kb/ckb.json" > "$kb/README.md"
+' "$kb/ckb.json" > "$kb/README.md" 2>/dev/null || true
 
 printf '%s\n' "$vout"
-if [ "$status" = complete ]; then rm -f "$draft"; fi
+[ -n "$docmeta_out" ] && printf '%s\n' "$docmeta_out" | tail -1
+[ "$docs_lint" != '{}' ] && printf '%s' "$docs_lint" | jq -r 'to_entries[] | select((.value | type) == "array" and (.value | length) > 0) | "  docs: \(.key): \(.value | join("; "))"' 2>/dev/null | head -40
+[ -n "$cov_uncited_manifests" ] && printf '  coverage: manifest not cited: %s\n' $cov_uncited_manifests | head -20
+if [ "$status" = complete ]; then rm -f "$draft"; rm -rf "$kb/ckb.draft.d"; fi
 [ "$status" = complete ] && [ "$mode" = local ] && printf 'COMMIT_HINT=git add ckb && git commit -m "docs(ckb): knowledge base for %s"\n' "$(printf '%s' "$sha" | cut -c1-7)"
-printf 'STATUS=%s KB_DIR=%s JOB_ID=%s WARNINGS=%s%s\n' "$status" "$kb" "$job_id" "$(printf '%s' "$out" | jq '.warnings | length')" "${missing:+ MISSING=$(echo $missing | tr ' ' ',')}"
+printf 'STATUS=%s KB_DIR=%s JOB_ID=%s WARNINGS=%s%s\n' "$status" "$kb" "$job_id" "$(jq '.warnings | length' "$kb/manifest.json")" "${missing:+ MISSING=$(echo $missing | tr ' ' ',')}"
 [ "$status" = complete ]
