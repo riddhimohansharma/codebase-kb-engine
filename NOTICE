@@ -1,0 +1,12 @@
+Codebase KB Engine
+Required Notice: Copyright 2026 Riddhi Mohan Sharma (https://github.com/riddhimohansharma/codebase-kb-engine)
+
+The plugin is licensed under the PolyForm Shield License 1.0.0 (see LICENSE), from version 0.8.0 onward.
+Versions up to and including 0.7.0 were published under the MIT License, and those exact versions remain
+available under MIT terms.
+
+spec/ contains the CKB specification, © 2026 Riddhi Mohan Sharma, redistributed unmodified under the
+Creative Commons Attribution-NoDerivatives 4.0 International License (CC BY-ND 4.0):
+https://github.com/riddhimohansharma/codebase-kb-spec  ·  https://creativecommons.org/licenses/by-nd/4.0/
+
+"CKB" and "Codebase Knowledge Base" are trademarks of Riddhi Mohan Sharma; see the spec's TRADEMARKS.md.

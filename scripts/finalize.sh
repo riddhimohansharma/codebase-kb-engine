@@ -17,6 +17,7 @@ while [ $# -gt 0 ]; do
   esac; shift
 done
 [ -d "$repo" ] || die 2 "repo_root not a dir: $repo"
+prev_manifest="$(mktemp)"; [ -f "$kb/manifest.json" ] && jq -e '.feedback' "$kb/manifest.json" >/dev/null 2>&1 && cp "$kb/manifest.json" "$prev_manifest" || echo '{}' > "$prev_manifest"
 [ -f "$kb/.ckb-output" ] || die 2 "REFUSED: '$kb' is not a CKB output dir (no .ckb-output marker; run resolve-kb.sh first)"
 draft="$kb/ckb.draft.json"
 # large repos: scouts write one fragment per area/collection into ckb.draft.d/. When fragments exist they are the ONLY
@@ -83,7 +84,8 @@ out="$(jq -c --argjson repo "$repo_obj" --argjson generator "$gen_obj" --argjson
 [ -n "$extra_warn" ] && out="$(printf '%s' "$out" | jq -c --arg w "$extra_warn" '.warnings += [$w]')"
 # Write the candidate first; it replaces ckb.json only if it passes validation.
 printf '%s' "$out" | jq '.artifact' > "$kb/ckb.json.candidate"
-printf '%s' "$out" | jq '.idmap // {}' > "$tmpd/idmap.json"
+# local -> final id map for the docs; also accept markers written as <type>:<local-id> (e.g. ckb:workflow:core.wf.x)
+printf '%s' "$out" | jq '(.idmap // {}) | to_entries | map(., {key: ((.value | split(":")[0]) + ":" + .key), value}) | from_entries' > "$tmpd/idmap.json"
 
 # Coverage: deterministic inventory of the repo vs. what the draft cites (completeness gate) + repo_profile languages
 cov_uncited_manifests=""
@@ -140,7 +142,7 @@ job_id="$(printf '%s|%s|%s' "$url" "$sha" "$now" | shasum -a 256 | cut -c1-16)"
 jq -n --arg id "$job_id" --arg mode "$mode" --arg started "${started:-$now}" --arg finished "$now" --arg status "$status" \
   --argjson repo "$repo_obj" --argjson generator "$gen_obj" --argjson dirty "$dirty" \
   --arg structural "$structural" --arg semantic "$semantic" --arg vout "$vout" --arg outputs "$outputs" \
-  --argjson norm "$out" --slurpfile art "$art" --argjson lint "$docs_lint" --arg redacted "$redacted" --arg uncited "$cov_uncited_manifests" '
+  --argjson norm "$out" --slurpfile art "$art" --argjson lint "$docs_lint" --arg redacted "$redacted" --arg uncited "$cov_uncited_manifests" --slurpfile prev "$prev_manifest" '
   {ckb_version: ($art[0].ckb_version // "0.2"),
    job: {id: $id, mode: $mode, started_at: $started, finished_at: $finished, generator: $generator},
    status: $status,
@@ -155,6 +157,17 @@ jq -n --arg id "$job_id" --arg mode "$mode" --arg started "${started:-$now}" --a
    warnings: ($norm.warnings
               + (if ($redacted | tonumber) > 0 then ["redacted \($redacted) occurrence(s) of secret values copied from repo config into the KB"] else [] end)
               + [$uncited | split("\n")[] | select(. != "") | "coverage: manifest not cited by any dependency: \(.)"]),
+   feedback: (
+     # self-improvement loop (local only): what the next run should target, and misses that keep recurring
+     ([$norm.warnings[] | sub(": .*$"; "") | sub(" \\(.*$"; "") | sub(" \u0027.*$"; "")] | group_by(.) | map({key: .[0], value: length}) | from_entries) as $sig
+     | ($prev[0].feedback.recurring // {}) as $pr
+     | {next_run_focus: ((([($art[0].coverage.buckets // {})[] | .uncited[]?]
+                         + [$norm.warnings[] | select(startswith("downgraded")) | capture("(?<c>[a-z_]+)/(?<id>.+)$")? | .id])
+                        | unique | .[0:200])),
+        recurring: ($sig | with_entries(.value = {count: .value, runs: ((($pr[.key].runs // 0) + 1))})),
+        improve_candidates: [ ($sig | keys[]) as $k | select(($pr[$k].runs // 0) >= 1)
+                              | select($k | test("unrecognised|without a known ecosystem|not allowed by the spec|generated/vendored"))
+                              | "recurring across runs: \($k) — consider a normalizer alias/rule (open an issue upstream)" ]}),
    token_usage: null,
    token_usage_note: "Not observable from inside the session. Headless runs: read usage from `claude -p --output-format json`."}' > "$kb/manifest.json.tmp" \
   && mv -f "$kb/manifest.json.tmp" "$kb/manifest.json" || die 1 "manifest generation failed (jq error above)"

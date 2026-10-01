@@ -160,4 +160,10 @@ Security issues: see [SECURITY.md](SECURITY.md). Contributing: [CONTRIBUTING.md]
 
 ## License
 
-[MIT](LICENSE) © 2026 Riddhi Mohan Sharma
+**[PolyForm Shield 1.0.0](LICENSE)** © 2026 Riddhi Mohan Sharma, from version 0.8.0 onward.
+
+- **Free to use** for everyone, including commercial and internal use at your company. You may modify it for your own use, and share it.
+- **Not allowed:** using this software to provide a product that **competes** with it or with the author's products built on it (CKB producers, consumers, code-knowledge graphs).
+- **Contributions** are welcome as pull requests and require the [CLA](CLA.md).
+- Versions up to and including 0.7.0 were published under MIT, and those exact versions remain MIT.
+- The vendored spec in `spec/` is CC BY-ND 4.0. "CKB" is a trademark; see [NOTICE](NOTICE).

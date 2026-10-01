@@ -20,25 +20,30 @@ If the output includes a `MIGRATED=` line, tell the user the legacy hidden `.ckb
 - If it prints `FRESHNESS=fresh` and `--force` was not given, report that the committed KB already describes the current source (quote the line) and STOP without writing anything.
 - If it prints `FRESHNESS=stale` with an `ANALYSED=` sha, an **incremental refresh** is allowed. Run `git -C "<REPO_ROOT>" diff --name-only <ANALYSED> HEAD -- . ':(exclude)ckb'`, give that list to the scouts as priority, and keep the existing names and headings for entities whose citations still resolve.
 - If uncommitted source changes exist, warn the user that the KB will describe uncommitted work.
+- **Self-improvement:** if `<KB_DIR>/manifest.json` from a previous run has a `feedback` block, read it. Give `feedback.next_run_focus` (files left uncited and claims downgraded last time) to the scouts as **first priority**. In the final report, list every `feedback.improve_candidates` entry as a suggested rule improvement for the plugin maintainer.
 
 **4. Permission probe.** Write `<KB_DIR>/manifest.json` with `{"status":"running"}` using the Write tool. If it is denied, print exactly one line, the `ADD_DIR_HINT` value, run step 11 if in URL mode, and STOP.
 
 **5. Inventory (deterministic).** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/inventory.sh" "<REPO_ROOT>"`. It returns the language mix, workspaces, `areas`, and every candidate file per bucket (manifests, lockfiles, routes, events, datastores, migrations, iac, ci, config, api_specs). Generated, vendored and `ckb/` paths are already excluded. **This list is your checklist:** every manifest and API spec in it must end up cited.
 
+**Context discipline (cost and speed).** You are the orchestrator. **Do not Read source files, fragments, docs or `ckb.json` in full.**
+- Use `"${CLAUDE_PLUGIN_ROOT}/scripts/kbq.sh"` (`summary`, `names`, `ids`, `claims`, `anchors`, `status`). It is pre-approved and returns compact output.
+- Subagents do the reading and writing, and reply with one-line summaries.
+
 **6. Recon in parallel.** Split the work into at most 8 scopes and launch **all scouts in a single message**:
-- one `scout-inventory` subagent for the mechanical buckets (manifests, lockfiles, iac, ci, config, api_specs, migrations), which produce dependencies, artifacts, services, config keys, API specs and migration tables;
+- one `scout-inventory` subagent for the mechanical buckets (manifests, lockfiles, iac, ci, config, api_specs, migrations);
 - one `scout` subagent per top `area` (a workspace member or top-level directory) for components, interfaces, events, datastores, business rules and workflows.
 
-Give each scout the absolute root, its path scope, its slice of the inventory, the area slug for local-id prefixes, and the incremental list if any. Each returns **only** a JSON draft fragment plus `"unscanned":[paths]`. Write each fragment to `<KB_DIR>/ckb.draft.d/<scope>.json`.
+Give each scout the absolute root, its path scope, its slice of the inventory, an area slug for local-id prefixes, the priority list (incremental changes plus `feedback.next_run_focus`), and **its `fragment` path**: `<KB_DIR>/ckb.draft.d/<scope>.json`. Each scout writes its own fragment and replies with a one-line summary.
 
 **Retry policy:**
-- A scout that errors, hits maxTurns, returns invalid JSON, or reports a non-empty `unscanned` list is re-dispatched **once**, with a narrower scope (the unscanned paths, or half its scope).
-- If it still fails, list the scope under `04` → Open questions as `[?] not scanned: <paths>`. **Never fill the gap by inference.**
+- A scout that errors, hits maxTurns, or reports a non-empty `unscanned` list is re-dispatched **once**, with a narrower scope (the unscanned paths, or half its scope).
+- If it still fails, the writer lists the scope under `04` → Open questions as `[?] not scanned: <paths>`. **Never fill the gap by inference.**
 - Never retry a guard-blocked command with a workaround.
 
-**7. Human docs.** Write the 8 docs into `<KB_DIR>` per the `kb-docs` skill (all required headings, diagrams, tags and anchors). If focus was given, weight toward it but still write all 8. Business-rule and workflow headings must equal the entity names in the draft.
+**7. Human docs.** Run `kbq.sh summary <KB_DIR>` to confirm the fragments exist. Then launch `kb-writer` subagents **in parallel**, for example one for `00`–`03` and one for `04`–`07`. Give them `KB_DIR`, `REPO_ROOT`, the doc list, the focus, and the `kbq.sh` path. If focus was given, they weight toward it but still write all 8.
 
-**8. Claim audit.** Pick up to 15 `confirmed` claims from the fragments: all outbound HTTP interfaces first, then business rules, then datastores. Give them to the `auditor` subagent as JSON `[{id, claim, path, line}]`. For every verdict that isn't `supported`, set that claim's confidence to `inferred` (or fix its line) in the fragment file.
+**8. Claim audit.** Run `kbq.sh claims <KB_DIR> 15` and give its JSON to the `auditor` subagent. For every verdict that isn't `supported`, ask the owning scout scope's fragment to be corrected: downgrade to `inferred`, or fix the line. A one-line Edit to that fragment is fine.
 
 **9. Finalize.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/finalize.sh" "<REPO_ROOT>" "<KB_DIR>" --started-at "<start>"`. In URL mode, add `--mode url --url "<REPO_URL>" --branch "<BRANCH>"`. It does the following:
 - merges `ckb.draft.d/`, inventories the repo and computes coverage;
@@ -46,8 +51,8 @@ Give each scout the absolute root, its path scope, its slice of the inventory, t
 - lints the docs, checks that the docs and the JSON agree, injects doc front-matter, rewrites local ids to final ids in the docs, and generates `90-reference.md`;
 - redacts secrets, validates, and writes `ckb.json`, `manifest.json`, `README.md`, `.gitattributes` and `.gitignore`.
 
-If `STATUS` is not `complete`, read the reported violations:
-- **missing headings / parity / lint:** fix the doc.
+If `STATUS` is not `complete`, run `kbq.sh status <KB_DIR>` and read the reported violations:
+- **missing headings / parity / lint:** fix the doc, with a targeted Edit or a `kb-writer` re-run for that doc.
 - **schema / semantic:** fix the fragment.
 - **`coverage … uncited`:** run one scout on exactly those files and add its fragment.
 

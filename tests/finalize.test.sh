@@ -36,6 +36,12 @@ mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1
 ok "determinism: artifact identical except generated_at" '[ "$(jq -c "del(.repo.generated_at)" "$A" | shasum)" = "$(jq -c "del(.repo.generated_at)" "$T/a1" | shasum)" ]'
 ok "determinism: docs byte-identical across runs"        'for f in "$KB"/0*.md; do cmp -s "$f" "$T/$(basename "$f").1" || exit 1; done'
 
+# docs may reference entities as `ckb:<type>:<local-id>`; finalize must rewrite them to final ids
+WF="$(jq -r '.entities.workflows[0].id' "$FX/ckb.json")"
+jq --arg w "$WF" '{entities, relations, repo_profile: (.repo_profile // {})} | .entities.workflows[0].id = "wf.local1"' "$FX/ckb.json" > "$KB/ckb.draft.json"
+cp "$FX"/good/*.md "$KB/"; for f in "$KB"/02-functional-workflows.md; do sed "s#ckb:$WF#ckb:workflow:wf.local1#g" "$f" > "$T/x" && cp "$T/x" "$f"; done
+"$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1; rc=$?
+ok "docs marker ckb:<type>:<local-id> rewritten to final id" '[ $rc -eq 0 ] && grep -q "ckb:$WF" "$KB/02-functional-workflows.md" && ! grep -q "wf.local1" "$KB/02-functional-workflows.md"'
 F="$ROOT/scripts/freshness.sh"
 ok "freshness: fresh right after generation"           '"$F" "$GOLD" >/dev/null'
 G "$GOLD" add ckb && G "$GOLD" commit -qm kb
@@ -84,6 +90,12 @@ ok "poly: provides->consumes relation corrected"      '[ "$(p "[.relations[] | s
 ok "poly: disallowed triple dropped with warning"     '! p ".relations[].from" | grep -q "^datastore:" && jq -e "[.warnings[] | select(test(\"not allowed by the spec\"))] | length > 0" "$PM" >/dev/null'
 ok "poly: multi-method relation fans out to both"     '[ "$(p "[.relations[] | select(.to|test(\"/items/\"))] | length")" = 2 ]'
 ok "poly: confidence_summary matches claims"          '[ "$(p ".confidence_summary | [.confirmed,.inferred,.unknown] | add")" = "$(p "[.entities[][], (.relations // [])[]] | length")" ]'
+
+# self-improvement loop: feedback persists across runs, recurrence is counted, candidates surface
+ok "feedback: next_run_focus + recurring recorded"    'jq -e ".feedback.next_run_focus | type == \"array\"" "$PM" >/dev/null && jq -e ".feedback.recurring | length > 0" "$PM" >/dev/null'
+cp "$PD" "$PKB/ckb.draft.json"; "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1
+ok "feedback: recurrence counted on second run"       'jq -e "[.feedback.recurring[] | select(.runs >= 2)] | length > 0" "$PM" >/dev/null'
+ok "feedback: improvement candidate surfaced"         'jq -e "[.feedback.improve_candidates[] | select(test(\"not allowed by the spec\"))] | length == 1" "$PM" >/dev/null'
 
 # ===================== 3. failure paths =====================
 run_gold(){ mkgold; "$1/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1; }
