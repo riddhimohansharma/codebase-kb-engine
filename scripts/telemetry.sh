@@ -7,7 +7,7 @@
 set -uo pipefail
 SDIR="${CKB_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/codebase-kb-engine}"
 URL="${CKB_TELEMETRY_URL:-}"            # set to the deployed relay endpoint (…/v1/report) at release time
-DEFAULT_URL=""                          # filled in when the relay is deployed
+DEFAULT_URL="https://codebase-kb-telemetry.ridhimohansharma.workers.dev/v1/report"
 [ -z "$URL" ] && URL="$DEFAULT_URL"
 why_off(){
   case "${DO_NOT_TRACK:-}" in 1|true|TRUE|yes) echo "DO_NOT_TRACK is set"; return ;; esac

@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.9.2] — 2026-10-01
+- Anonymous usage reports go live (relay endpoint configured).
+
 ## [0.9.1] — 2026-10-01
 - Anonymous usage reports, on by default with a first-run notice; opt out with `telemetry off`, `CKB_TELEMETRY=off` or `DO_NOT_TRACK=1`.
 - Warning categories reported as fixed IDs only.

@@ -3,7 +3,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 T="$(mktemp -d)"; T="$(cd "$T" && pwd -P)"; trap 'chmod -R u+w "$T" 2>/dev/null; rm -rf "$T"' EXIT
-unset KB_DIR CKB_METRICS CKB_TELEMETRY DO_NOT_TRACK; export CKB_STATE_DIR="$T/state"; : > "$T/r"
+unset KB_DIR CKB_METRICS DO_NOT_TRACK; export CKB_STATE_DIR="$T/state" CKB_TELEMETRY=off; : > "$T/r"   # tests never reach the live relay
 ok(){ if eval "$2"; then echo P >> "$T/r"; echo "PASS $1"; else echo F >> "$T/r"; echo "FAIL $1"
       [ -f "$T/r.dumped" ] || { : > "$T/r.dumped"; echo "  --- finalize output:"; sed 's/^/  | /' "$T/out" 2>/dev/null | tail -25; }; fi; }
 G(){ git -C "$1" -c user.email=t@t -c user.name=t "${@:2}"; }
@@ -115,10 +115,10 @@ ok "stats: --submit without --yes only previews"     'grep -q "PREVIEW ONLY" "$T
 # telemetry: on by default with notice; opt-outs honoured; payload is the anonymous record and passes the relay's validator
 FK="$T/fakebin"; mkdir -p "$FK"; cat > "$FK/curl" <<'FAKE'
 #!/usr/bin/env bash
-for a in "$@"; do case "$a" in @*) cat "${a#@}" >> "$CURL_LOG";; esac; done; echo >> "$CURL_LOG"; exit 0
+for a in "$@"; do case "$a" in @*) cat "${a#@}" >> "$CURL_LOG";; https://*|http://*) echo "$a" >> "$CURL_LOG.urls";; esac; done; echo >> "$CURL_LOG"; exit 0
 FAKE
 chmod +x "$FK/curl"; export CURL_LOG="$T/curl.log"; : > "$CURL_LOG"
-tel(){ cp "$PD" "$PKB/ckb.draft.json"; env PATH="$FK:$PATH" CKB_TELEMETRY_SYNC=1 CKB_TELEMETRY_URL="https://relay.test/v1/report" "$@" "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1; }
+tel(){ cp "$PD" "$PKB/ckb.draft.json"; env -u CKB_TELEMETRY PATH="$FK:$PATH" CKB_TELEMETRY_SYNC=1 CKB_TELEMETRY_URL="https://relay.test/v1/report" "$@" "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1; }
 rm -f "$T/state/telemetry-notice-shown" "$T/state/telemetry"
 tel
 ok "telemetry: default ON sends one report"           '[ "$(grep -c . "$CURL_LOG")" = 1 ]'
@@ -134,9 +134,10 @@ tel DO_NOT_TRACK=1;     ok "telemetry: DO_NOT_TRACK=1 sends nothing"       '[ "$
 tel CKB_TELEMETRY=off;  ok "telemetry: CKB_TELEMETRY=off sends nothing"    '[ "$(grep -c . "$CURL_LOG")" = "$n" ]'
 "$ROOT/scripts/telemetry.sh" off >/dev/null; tel; ok "telemetry: saved off sends nothing" '[ "$(grep -c . "$CURL_LOG")" = "$n" ]'
 "$ROOT/scripts/telemetry.sh" on >/dev/null
-cp "$PD" "$PKB/ckb.draft.json"; env PATH="$FK:$PATH" CKB_TELEMETRY_SYNC=1 CKB_TELEMETRY_URL= "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1
-ok "telemetry: no endpoint configured sends nothing"  '[ "$(grep -c . "$CURL_LOG")" = "$n" ]'
-cp "$PD" "$PKB/ckb.draft.json"; env PATH="$FK:$PATH" CKB_TELEMETRY_SYNC=1 CKB_TELEMETRY_URL="http://insecure.test/x" "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1
+cp "$PD" "$PKB/ckb.draft.json"; env -u CKB_TELEMETRY PATH="$FK:$PATH" CKB_TELEMETRY_SYNC=1 CKB_TELEMETRY_URL= "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1
+ok "telemetry: default endpoint is the HTTPS relay"   '[ "$(grep -c . "$CURL_LOG")" = "$((n + 1))" ] && tail -1 "$CURL_LOG.urls" | grep -q "^https://codebase-kb-telemetry\..*\.workers\.dev/v1/report$"'
+n="$(grep -c . "$CURL_LOG")"
+cp "$PD" "$PKB/ckb.draft.json"; env -u CKB_TELEMETRY PATH="$FK:$PATH" CKB_TELEMETRY_SYNC=1 CKB_TELEMETRY_URL="http://insecure.test/x" "$ROOT/scripts/finalize.sh" "$POLY" "$PKB" >"$T/out" 2>&1
 ok "telemetry: plain http endpoint refused"           '[ "$(grep -c . "$CURL_LOG")" = "$n" ]'
 
 # ===================== 3. failure paths =====================
