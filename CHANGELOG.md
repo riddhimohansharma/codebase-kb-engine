@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 - The spec repository is now **`codebase-kb-spec`**, renamed from `ckb-spec`. Links, `tools/sync-spec.sh` defaults and the vendored schema `$id` are updated, and the spec is re-vendored at `codebase-kb-spec@543dc15`.
 
 ### Fixed
+- **Linux/jq 1.7:** `manifest.json` generation failed with a jq syntax error, because jq 1.7 rejects an unparenthesized `a + b` as an object value and jq 1.8 accepts it. Ubuntu CI caught it. Both test suites now pass on jq 1.6, 1.7 and 1.8.
 - `finalize.sh` now fails loudly if writing `manifest.json` fails, instead of leaving a stale or empty manifest. The conformance test prints the finalize output on its first failure, which helps diagnose CI.
 
 ## [0.6.0] — 2026-09-30

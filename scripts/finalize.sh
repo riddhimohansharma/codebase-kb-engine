@@ -93,7 +93,7 @@ jq -n --arg id "$job_id" --arg mode "$mode" --arg started "${started:-$now}" --a
    validation: {structural: $structural, semantic: $semantic,
                 messages: [$vout | split("\n")[] | select(startswith("  ")) | ltrimstr("  ")]},
    confidence_summary: $art[0].confidence_summary,
-   entity_counts: ($art[0].entities | map_values(length)) + {relations: ($art[0].relations // [] | length)},
+   entity_counts: (($art[0].entities | map_values(length)) + {relations: ($art[0].relations // [] | length)}),
    warnings: $norm.warnings,
    token_usage: null,
    token_usage_note: "Not observable from inside the session. Headless runs: read usage from `claude -p --output-format json`."}' > "$kb/manifest.json.tmp" \
