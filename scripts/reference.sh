@@ -10,7 +10,7 @@ set -uo pipefail
 art="${1:-}"
 [ -n "$art" ] || { echo "usage: reference.sh <ckb.json>" >&2; exit 2; }
 jq -e 'type == "object"' "$art" >/dev/null 2>&1 || { echo "artifact missing or not a JSON object: $art" >&2; exit 2; }
-jq -r --arg ex "':(exclude)ckb'" '
+jq -r --arg ex "':(exclude).ckb'" '
   def esc: if . == null then "-" elif type == "array" then (if length == 0 then "-" else map(tostring) | join(", ") end)
            else tostring end | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|") | (if . == "" then "-" else . end);
   def tag: if .confidence == "confirmed" then "[C]" elif .confidence == "inferred" then "[I]" else "[?]" end;

@@ -58,7 +58,7 @@ function slugid(val, pre){ return (val ~ ("^" pre "-[a-z0-9]+(-[a-z0-9]+)*$")) }
 BEGIN {
   nreq = split(req, R, "|"); split(bud, B, " ")
   CITE = "[A-Za-z0-9_./-]+[.][A-Za-z0-9]+:[0-9]+"
-  CKBCITE = "[^A-Za-z0-9_./-]([.]/)?ckb/[A-Za-z0-9_./-]+:[0-9]"
+  CKBCITE = "[^A-Za-z0-9_./-]([.]/)?[.]ckb/[A-Za-z0-9_./-]+:[0-9]"
   ANCHOR_SECS["01-technical-architecture.md|Components (C4 L3)"] = 1
   ANCHOR_SECS["01-technical-architecture.md|Interfaces"] = 1
   ANCHOR_SECS["02-functional-workflows.md|Workflows"] = 1
@@ -85,7 +85,7 @@ fm == 1 { if ($0 == "---") fm = 2; next }
   words += NF
   if (line ~ CITE && !(index(line, "[C]") || index(line, "[I]") || index(line, "[?]")))
     v("L" NR ": citation without [C]/[I]/[?] tag")
-  if ((" " line) ~ CKBCITE) v("L" NR ": cites ckb/ (the KB must not cite itself)")
+  if ((" " line) ~ CKBCITE) v("L" NR ": cites .ckb/ (the KB must not cite itself)")
   if (index(line, "Not applicable") && !index(line, "[?]")) v("L" NR ": Not applicable line without [?]")
   if (line ~ /^## /) {
     h2 = trim(substr(line, 4)); if (h2 in seen2) v("L" NR ": duplicate heading: ## " h2)

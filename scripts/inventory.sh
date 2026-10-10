@@ -126,7 +126,7 @@ awk -F'\t' '$1=="B" && ($2=="manifests" || $2=="lockfiles" || $2=="api_specs" ||
 cat > "$T/content.awk" <<'AWK'
 BEGIN {
   while ((getline l < EX) > 0) EXM[l] = 1
-  n = split("java kt kts scala sc groovy cs fs fsx vb js jsx mjs cjs ts tsx mts cts vue svelte astro py rb rake php go rs ex exs erl swift m mm h hpp c cc cpp cxx dart lua pl pm r jl clj cljs cljc hs ml nim zig cr sol", a, " ")
+  n = split("java kt kts scala sc groovy cs fs fsx vb js jsx mjs cjs ts tsx mts cts vue svelte astro py rb rake php go rs ex exs erl swift m mm h hpp c cc cpp cxx dart lua pl pm r jl clj cljs cljc hs ml nim zig cr sol sh bash", a, " ")
   for (i = 1; i <= n; i++) SRC[a[i]] = 1
 }
 function hit(bk) { if (!(bk in H)) { H[bk] = 1; print bk "\t" f } }

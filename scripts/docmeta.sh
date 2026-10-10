@@ -74,7 +74,7 @@ for d in $DOCS; do
   { grep -oE '`ckb:[^`]+`' "$tmpd/body" || true; } | sed 's/^`ckb://; s/`$//' | sort -u | jq -R . | jq -s . > "$tmpd/refs.json"
   { grep -oE '[A-Za-z0-9_./-]+[.][A-Za-z0-9]+:[0-9]+' "$tmpd/body" || true; } | sed 's#^\./##' | sort -u | jq -R . | jq -s . > "$tmpd/cites.json"
   m="$(meta "$d")"
-  jq -r --arg ex "':(exclude)ckb'" --arg doc "${m%%|*}" --arg rest "${m#*|}" --slurpfile refs "$tmpd/refs.json" --slurpfile cites "$tmpd/cites.json" '
+  jq -r --arg ex "':(exclude).ckb'" --arg doc "${m%%|*}" --arg rest "${m#*|}" --slurpfile refs "$tmpd/refs.json" --slurpfile cites "$tmpd/cites.json" '
     ($rest | split("|")) as $r
     | ($refs[0] | map({key: ., value: true}) | from_entries) as $R
     | ($cites[0] | map({key: ., value: true}) | from_entries) as $P

@@ -1,6 +1,6 @@
 ---
 name: kb-writer
-description: Writes codebase-kb-engine /kb human docs (ckb/00–07 *.md; 09-reference.md is generated) from the scouts' draft fragments, following the kb-docs skill exactly. Writes only inside ckb/; never modifies source.
+description: Writes codebase-kb-engine /kb human docs (.ckb/00–07 *.md; 09-reference.md is generated) from the scouts' draft fragments, following the kb-docs skill exactly. Writes only inside .ckb/; never modifies source.
 model: sonnet
 effort: medium
 maxTurns: 40
@@ -19,5 +19,5 @@ You write some or all of the 8 knowledge-base docs into `<KB_DIR>` for the repos
 3. **Parity:**
    - Business-rule headings in `03` and workflow headings in `02` are **exactly** the entity names. Get them from `"<kbq.sh>" names <KB_DIR>`.
    - Each anchored heading is followed by `` `ckb:<local id>` ``, using the fragment's `id`. Finalize rewrites local ids to final ids.
-4. **Content rules:** never invent facts. Unknowns become `[?]` and go in `04` → Open questions. Never copy secret values. Never cite `ckb/`.
+4. **Content rules:** never invent facts. Unknowns become `[?]` and go in `04` → Open questions. Never copy secret values. Never cite `.ckb/`.
 5. **Reply:** ONLY a one-line JSON summary: `{"written": [files], "open_questions": n}`. Never paste document content into your reply.

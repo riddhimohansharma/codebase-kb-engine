@@ -2,7 +2,7 @@
 # Run with: jq -L <plugin>/spec/v0.2 -f normalize.jq   (IDs come from the spec's own derive.jq — single source of truth)
 # Input: {entities:{...}, relations:[...], repo_profile?} where entity `id`s are local reference keys.
 # Args:  $repo, $generator (objects); $roots (array of absolute repo-root spellings); $lines (object path -> line count,
-#        for every cited file that exists in the repo outside ckb/).
+#        for every cited file that exists in the repo outside .ckb/).
 # Output: {artifact, idmap, warnings}
 include "derive";
 
@@ -13,7 +13,7 @@ def snake: gsub("(?<a>[a-z0-9])(?<b>[A-Z])"; "\(.a)_\(.b)") | ascii_downcase | g
          | if . == "" then "param" elif test("^[a-z_]") then . else "p_" + . end;
 def rank: {"confirmed": 0, "inferred": 1, "unknown": 2}[.] // 2;
 def nonempty: select(. != null and . != "");
-def in_kb: (. // "" | tostring | sub("^\\./"; "")) as $q | ($q == "ckb" or ($q | startswith("ckb/")));
+def in_kb: (. // "" | tostring | sub("^\\./"; "")) as $q | ($q == ".ckb" or ($q | startswith(".ckb/")));
 def key: tostring | ascii_downcase | gsub("[ _]+"; "-");
 def coerce($allowed; $aliases; $default): (. // "" | key) as $v
   | if ($allowed | index([$v])) then $v elif $aliases[$v] then $aliases[$v] else $default end;

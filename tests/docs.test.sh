@@ -82,10 +82,10 @@ fresh; printf '%s\n' '```text' 'src/api/routes.ts:12' '```' >> "$K/02-functional
 ok "citations inside code fences exempt"           'clean'
 fresh; add 04-system-context-and-gaps.md "Regenerate from ckb.draft.json when needed. [?]"
 ok "ckb.draft mention flagged"                     'has 04-system-context-and-gaps.md "mentions ckb.draft"'
-fresh; add 04-system-context-and-gaps.md "- Index lives at ckb/README.md:3 [C]"
-ok "citing ckb/ flagged"                           'has 04-system-context-and-gaps.md "cites ckb/"'
-fresh; add 04-system-context-and-gaps.md "- Copy at ./ckb/00-overview.md:1 [C]"
-ok "citing ./ckb/ flagged"                         'has 04-system-context-and-gaps.md "cites ckb/"'
+fresh; add 04-system-context-and-gaps.md "- Index lives at .ckb/README.md:3 [C]"
+ok "citing .ckb/ flagged"                          'has 04-system-context-and-gaps.md "cites .ckb/"'
+fresh; add 04-system-context-and-gaps.md "- Copy at ./.ckb/00-overview.md:1 [C]"
+ok "citing ./.ckb/ flagged"                        'has 04-system-context-and-gaps.md "cites .ckb/"'
 fresh; add 04-system-context-and-gaps.md "- Vendored at docs/ckb/notes.md:3 [C]"
 ok "nested docs/ckb/ path is not the KB (allowed)" 'clean'
 fresh; add 06-security-and-data.md "- Hardcoded key AKIAABCDEFGHIJKLMNOP in config [C]"
@@ -167,7 +167,7 @@ ok "docmeta exit 0, all 8 updated"                 '[ $rc -eq 0 ] && grep -qx "D
 ok "front-matter starts the doc"                   '[ "$(head -1 "$D3")" = "---" ] && grep -qx "ckb_doc: \"business-rules\"" "$D3"'
 ok "front-matter fields present"                   'for k in ckb_doc title audience diataxis source_commit branch generator ckb_version confidence freshness_cmd; do grep -q "^$k:" "$D3" || exit 1; done'
 ok "front-matter values from ckb.json"             'grep -qx "source_commit: \"0123456789abcdef0123456789abcdef01234567\"" "$D3" && grep -qx "branch: \"main\"" "$D3" && grep -qx "generator: \"codebase-kb-engine 0.8.0\"" "$D3" && grep -qx "ckb_version: \"0.2\"" "$D3"'
-ok "freshness_cmd exact"                           'grep -qxF "freshness_cmd: \"git diff --quiet 0123456789abcdef0123456789abcdef01234567 HEAD -- . '"':(exclude)ckb'"'\"" "$D3"'
+ok "freshness_cmd exact"                           'grep -qxF "freshness_cmd: \"git diff --quiet 0123456789abcdef0123456789abcdef01234567 HEAD -- . '"':(exclude).ckb'"'\"" "$D3"'
 ok "no generated_at / timestamps"                  '! grep -rqE "generated_at|[0-9]{4}-[0-9]{2}-[0-9]{2}T" "$K"'
 ok "per-doc confidence counts (03: 1/1/0)"         '[ "$(sed -n "/^confidence:/,/^  unknown/p" "$D3" | tr -d " \n")" = "confidence:confirmed:1inferred:1unknown:0" ]'
 ok "body preserved byte-for-byte"                  'for f in "$FX"/good/*.md; do awk "NR==1&&\$0==\"---\"{fm=1;next} fm==1{if(\$0==\"---\")fm=2;next} {print}" "$K/$(basename "$f")" | cmp -s - "$f" || exit 1; done'

@@ -4,11 +4,11 @@ description: CKB v0.2 machine-artifact contract (ckb.draft.json shape, purl depe
 ---
 # CKB output contract (v0.2)
 
-You (and the scouts) write the **draft**; `scripts/finalize.sh` turns it into the conforming `ckb/ckb.json`. The spec is vendored at `${CLAUDE_PLUGIN_ROOT}/spec/v0.2/` (`ckb.schema.json`, `semantic.jq`, `derive.jq`). The KB serves one goal: a consumer ingesting many repos must be able to build a **complete cross-repo graph and dependency map**. Completeness of join keys matters more than prose.
+You (and the scouts) write the **draft**; `scripts/finalize.sh` turns it into the conforming `.ckb/ckb.json`. The spec is vendored at `${CLAUDE_PLUGIN_ROOT}/spec/v0.2/` (`ckb.schema.json`, `semantic.jq`, `derive.jq`). The KB serves one goal: a consumer ingesting many repos must be able to build a **complete cross-repo graph and dependency map**. Completeness of join keys matters more than prose.
 
 ## Where the draft goes
-- Small repo: one file `ckb/ckb.draft.json`.
-- Large repo (more than ~300 entities): **one file per area or collection** in `ckb/ckb.draft.d/*.json`, each in the same shape. Finalize merges them. Never put more than ~300 entities in one Write.
+- Small repo: one file `.ckb/ckb.draft.json`.
+- Large repo (more than ~300 entities): **one file per area or collection** in `.ckb/ckb.draft.d/*.json`, each in the same shape. Finalize merges them. Never put more than ~300 entities in one Write.
 
 ## The script does this for you. Don't spend effort on it.
 - `ckb_version`, `repo` identity, `generator`, `confidence_summary`, `coverage`.
@@ -42,7 +42,7 @@ You (and the scouts) write the **draft**; `scripts/finalize.sh` turns it into th
     "api_specs":         [{"id","name","path","format","version?"}] },
   "relations": [{"from","to","kind"}] }
 ```
-Every entity and relation also carries `"confidence"` and `"provenance": [{"path":"<repo-relative>","line":N,"end_line?":M}]`. Paths are repo-relative, with no leading `/` and no `..`. **Never cite `ckb/`, generated or vendored code.** Extra vendor data goes in `x-…` fields.
+Every entity and relation also carries `"confidence"` and `"provenance": [{"path":"<repo-relative>","line":N,"end_line?":M}]`. Paths are repo-relative, with no leading `/` and no `..`. **Never cite `.ckb/`, generated or vendored code.** Extra vendor data goes in `x-…` fields.
 
 ## Join keys: what makes the graph connect
 | Collection | Key fields | Rules |

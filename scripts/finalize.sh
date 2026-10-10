@@ -51,7 +51,7 @@ case "$url" in
   *) url="$(printf '%s' "$url" | sed -E 's#^[A-Za-z0-9._-]+@([^:/]+):#https://\1/#; s#^(ssh|git|git\+ssh|https?)://#https://#; s#^https://([^/@]*@)#https://#; s#^https://([^/:]+):[0-9]+/#https://\1/#; s#\.git/?$##; s#/+$##')"
      host="$(printf '%s' "$url" | sed -E 's#^https://([^/]+).*#\1#' | tr 'A-Z' 'a-z')"; url="https://$host/${url#https://*/}" ;;
 esac
-dirty=false; [ -n "$(git -C "$repo" status --porcelain -- . ':(exclude)ckb' ':(exclude,glob)**/.DS_Store' ':(exclude,glob)**/Thumbs.db' ':(exclude,glob)**/desktop.ini' 2>/dev/null | head -1)" ] && dirty=true   # the KB itself never counts
+dirty=false; [ -n "$(git -C "$repo" status --porcelain -- . ':(exclude).ckb' ':(exclude,glob)**/.DS_Store' ':(exclude,glob)**/Thumbs.db' ':(exclude,glob)**/desktop.ini' 2>/dev/null | head -1)" ] && dirty=true   # the KB itself never counts
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 gen_ver="$(jq -r .version "$ROOT/.claude-plugin/plugin.json")"
 repo_obj="$(jq -nc --arg u "$url" --arg b "$branch" --arg s "$sha" --arg t "$now" '{url:$u, branch:$b, commit_sha:$s, generated_at:$t}')"
@@ -68,14 +68,14 @@ redact_values(){ git -C "$repo" ls-files -co --exclude-standard | grep -E '(^|/)
       grep -hoE "['\"][A-Za-z0-9+/_=-]{24,}['\"]" "$repo/$f" 2>/dev/null | tr -d "'\""
     done | sort -u | grep -vE '^(true|false|null|https?://[^/]*/?|[a-z]+(\.[a-z]+)+)$'; }
 # Citation verification input: line counts for every cited file that really exists in the repo (tracked or
-# untracked-but-not-ignored), outside ckb/. normalize.jq downgrades any claim whose citations don't resolve.
+# untracked-but-not-ignored), outside .ckb/. normalize.jq downgrades any claim whose citations don't resolve.
 rroot="$(cd "$repo" && pwd -P)"; aroot="$(cd "$repo" && pwd)"
 roots="$(jq -nc --arg a "$rroot" --arg b "$aroot" --arg c "${repo%/}" '[$a, $b, $c] | unique')"
 tmpd="$(mktemp -d)"; trap 'rm -rf "$tmpd"' EXIT
 git -C "$repo" ls-files -co --exclude-standard > "$tmpd/files" 2>/dev/null
 jq -r --argjson roots "$roots" '[.. | objects | select(has("path") and has("line")) | .path | strings] | unique | .[]
   | . as $p | ([$roots[] | select($p | startswith(. + "/"))] | first) as $r | (if $r then $p[($r|length)+1:] else $p end) | sub("^(\\./)+"; "")' "$draft" \
-  | grep -v -e '^/' -e '\.\.' -e '^ckb$' -e '^ckb/' | sort -u > "$tmpd/cited"
+  | grep -v -e '^/' -e '\.\.' -e '^\.ckb$' -e '^\.ckb/' | sort -u > "$tmpd/cited"
 grep -Fxf "$tmpd/files" "$tmpd/cited" | while IFS= read -r f; do [ -f "$repo/$f" ] && printf '%s\t%s\n' "$f" "$(wc -l < "$repo/$f" | tr -d ' ')"; done \
   | jq -Rn '[inputs | split("\t") | {key: .[0], value: (.[1] | tonumber)}] | from_entries' > "$tmpd/lines.json"
 
@@ -193,7 +193,7 @@ jq -r --arg status "$status" '
   "| [ckb.json](ckb.json) | tools | Machine-readable CKB artifact |\n",
   "Claims: \(.confidence_summary.confirmed) confirmed · \(.confidence_summary.inferred) inferred · \(.confidence_summary.unknown) unknown.",
   (if .coverage then "Coverage: " + ([.coverage.buckets | to_entries[] | select(.value.found > 0) | "\(.key) \(.value.cited)/\(.value.found)"] | join(" · ")) + ".\n" else "" end),
-  "**Freshness:** this KB is current while nothing outside `ckb/` has changed since the source commit (`git diff --quiet \(.repo.commit_sha[0:12]) HEAD -- . \u0027:(exclude)ckb\u0027`). Regenerate with `/kb`."
+  "**Freshness:** this KB is current while nothing outside `.ckb/` has changed since the source commit (`git diff --quiet \(.repo.commit_sha[0:12]) HEAD -- . \u0027:(exclude).ckb\u0027`). Regenerate with `/kb`."
 ' "$kb/ckb.json" > "$kb/README.md" 2>/dev/null || true
 
 # Anonymous local run metrics (performance and quality stats; never paths, names, code, URLs or values).

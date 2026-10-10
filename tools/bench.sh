@@ -25,7 +25,7 @@ jq -c '.repos[]' "$suite" | while IFS= read -r r; do
   t0=$(date +%s)
   ( cd "$w" && CKB_STATE_DIR="$out/state" claude -p "/codebase-kb-engine:kb" --plugin-dir "$ROOT" --permission-mode acceptEdits \
       --allowedTools "$TOOLS" --model "$model" --max-turns 250 --output-format json ) > "$w.run.json" 2>"$w.err"
-  t1=$(date +%s); kb="$w/ckb"
+  t1=$(date +%s); kb="$w/.ckb"
   acc='null'
   if [ -n "$gt" ] && [ -f "$kb/ckb.json" ]; then
     acc="$(jq -n --slurpfile a "$kb/ckb.json" --slurpfile g "$ROOT/tools/bench/ground-truth/$gt.json" "$NORM"'

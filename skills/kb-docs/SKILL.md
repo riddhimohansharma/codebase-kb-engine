@@ -1,6 +1,6 @@
 ---
 name: kb-docs
-description: Human-docs contract for the codebase-kb-engine /kb command ONLY (not for general documentation, READMEs, or ADR work outside /kb). Defines the 8 model-written docs in <repo>/ckb/, their exact required headings, diagrams, anchors, confidence tags, determinism, and secrets rules, all enforced by scripts/lint-docs.sh.
+description: Human-docs contract for the codebase-kb-engine /kb command ONLY (not for general documentation, READMEs, or ADR work outside /kb). Defines the 8 model-written docs in <repo>/.ckb/, their exact required headings, diagrams, anchors, confidence tags, determinism, and secrets rules, all enforced by scripts/lint-docs.sh.
 ---
 # KB docs contract (/kb only)
 
@@ -8,7 +8,7 @@ Goal: a complete, verifiable KB for one repository, understood as a standalone s
 
 ## Principles
 - First principles: reduce to the ~4% of data models, interfaces, and rules that govern the rest. State assumptions.
-- Provenance: every non-obvious claim cites `path:line` (or `path:line-end`), repo-relative. Never cite `ckb/`. Never mention `ckb.draft*` files.
+- Provenance: every non-obvious claim cites `path:line` (or `path:line-end`), repo-relative. Never cite `.ckb/`. Never mention `ckb.draft*` files.
 - Confidence: `[C]` confirmed in code, `[I]` inferred, `[?]` unknown or needs verification. They equal `confirmed` / `inferred` / `unknown` in `ckb.json`. Never present inference as fact; never invent facts. Write `[?]` instead.
 - Read-only toward code. Write only inside the KB dir. Never commit.
 - Terse, dense, decision-oriented. Link paths; do not paste code.

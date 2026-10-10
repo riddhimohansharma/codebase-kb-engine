@@ -21,7 +21,7 @@ Version 0.8.0 · CKB format v0.2 (draft)
 
 ## 1. What it does
 
-Codebase KB Engine reads a repository and writes a **knowledge base into the repo itself**, at `ckb/`, for you to commit alongside the code:
+Codebase KB Engine reads a repository and writes a **knowledge base into the repo itself**, at `.ckb/`, for you to commit alongside the code:
 
 - **Eight documents for people**: overview; technical architecture with C4 views and an ERD; functional workflows with sequence diagrams; business rules; system context and gaps; operations; security and data; decisions. Plus a generated reference.
 - **One artifact for machines**: `ckb.json`, in the open [CKB v0.2 format](https://github.com/riddhimohansharma/codebase-kb-spec), built so tools ingesting many repositories can build a **complete cross-repo graph and dependency map**. It records:
@@ -31,13 +31,13 @@ Codebase KB Engine reads a repository and writes a **knowledge base into the rep
   - which tables it touches;
   - which config keys (names only) and external SaaS it uses.
 
-Every claim cites the source line it came from (`path:line`) and is labelled **confirmed**, **inferred** or **unknown**. Citations are **checked against the real files**: a claim whose file or line doesn't exist is downgraded to `unknown`. Secret values from repo config that end up in the KB are **redacted** before anything is written. Generation is read-only: the plugin writes nothing except `ckb/`, never edits source, and never commits.
+Every claim cites the source line it came from (`path:line`) and is labelled **confirmed**, **inferred** or **unknown**. Citations are **checked against the real files**: a claim whose file or line doesn't exist is downgraded to `unknown`. Secret values from repo config that end up in the KB are **redacted** before anything is written. Generation is read-only: the plugin writes nothing except `.ckb/`, never edits source, and never commits.
 
 ## 2. Concepts
 
 | Term | Meaning |
 |---|---|
-| **KB** | The contents of `<repo-root>/ckb/` |
+| **KB** | The contents of `<repo-root>/.ckb/` |
 | **CKB** | The open, versioned format of `ckb.json`. The spec is vendored in `spec/` |
 | **Claim** | A single fact in the KB, such as a route, dependency, table, rule or workflow |
 | **Provenance** | The `path:line` citation(s) behind a claim. Paths are relative to the repo root |
@@ -63,7 +63,7 @@ claude plugin install codebase-kb-engine@codebase-kb-engine
 
 **Update:** new versions are picked up when the plugin version changes. Run `/plugin marketplace update codebase-kb-engine`, then restart Claude Code.
 
-**Uninstall:** `/plugin uninstall codebase-kb-engine@codebase-kb-engine`. Your committed `ckb/` directories stay in their repos.
+**Uninstall:** `/plugin uninstall codebase-kb-engine@codebase-kb-engine`. Your committed `.ckb/` directories stay in their repos.
 
 ## 4. Quick start
 
@@ -76,14 +76,14 @@ When it finishes:
 ```bash
 git add ckb && git commit -m "docs(ckb): knowledge base for <sha>"
 ```
-Open `ckb/README.md` on GitHub to browse the KB. Run `/kb` again at any time: if no source has changed, it tells you the KB is fresh and does nothing.
+Open `.ckb/README.md` on GitHub to browse the KB. Run `/kb` again at any time: if no source has changed, it tells you the KB is fresh and does nothing.
 
 ## 5. Commands
 
 ### `/kb [--force] [focus]`: generate the KB for the current repo
 
 **Steps:**
-1. Loads the `kb-docs` and `ckb-contract` skills, then resolves `<repo-root>/ckb/` and refuses unsafe locations (see [§12](#12-troubleshooting)).
+1. Loads the `kb-docs` and `ckb-contract` skills, then resolves `<repo-root>/.ckb/` and refuses unsafe locations (see [§12](#12-troubleshooting)).
 2. **Checks freshness.** If the committed KB still describes the source, it stops and writes nothing; `--force` regenerates anyway. A stale KB is refreshed **incrementally**: changed files get priority, and existing names are kept.
 3. **Inventories the repo** deterministically, in about 0.5 s. It finds every manifest, lockfile, route file, event, ORM model, migration, IaC file, CI file, config file and API spec, with generated and vendored code excluded.
 4. **Runs up to 8 scouts in parallel.** One mechanical `scout-inventory` (haiku) handles dependencies, artifacts, services, config and API specs; one `scout` (sonnet) per area handles routes, calls, events, datastores, rules and workflows. Each returns a JSON fragment. Failed scopes are retried once; anything still missing is listed as `[?] not scanned` and never guessed.
@@ -98,7 +98,7 @@ Open `ckb/README.md` on GitHub to browse the KB. Run `/kb` again at any time: if
 
 | Status | Meaning | What to do |
 |---|---|---|
-| `complete` | All outputs present, artifact valid | Commit `ckb/` |
+| `complete` | All outputs present, artifact valid | Commit `.ckb/` |
 | `incomplete` | A document is missing or fails lint, the docs and JSON disagree, or a manifest isn't covered | Read `manifest.json` → `validation.docs` and `warnings`, then re-run `/kb --force` |
 | `unverified` | Schema check skipped (`uv` not installed) | Install uv and re-run |
 | `invalid` | The candidate failed validation after 2 repair attempts. It is saved as `ckb.json.rejected`, and a previous good `ckb.json` is kept | See `manifest.json` → `validation.messages`, and report it if it recurs |
@@ -109,7 +109,7 @@ See [§8](#8-analysing-a-remote-repo-url-mode).
 
 ### `/kb-validate [path/to/ckb.json]`: check an artifact
 
-Defaults to `<repo-root>/ckb/ckb.json`. It reports one row per check (JSON Schema, then rules R1–R7) plus freshness. It never reports a skipped check as a pass.
+Defaults to `<repo-root>/.ckb/ckb.json`. It reports one row per check (JSON Schema, then rules R1–R7) plus freshness. It never reports a skipped check as a pass.
 
 | Rule | Checks |
 |---|---|
@@ -120,7 +120,7 @@ Defaults to `<repo-root>/ckb/ckb.json`. It reports one row per check (JSON Schem
 | R4 | `confidence_summary` counts match the claims |
 | R5 | Workflow steps are numbered 1..n |
 | R6 | `end_line` ≥ `line` |
-| R7 | Nothing cites or describes `ckb/` |
+| R7 | Nothing cites or describes `.ckb/` |
 
 ### `/kb-unlock`: leave read-only mode
 
@@ -137,7 +137,7 @@ All three are read-only by instruction. They **don't** arm the gate, because nam
 ## 6. Output reference
 
 ```
-ckb/
+.ckb/
 ├── README.md                       index with coverage (deterministic; safe to commit)
 ├── 00-overview.md                  summary, glossary, ownership, macro context
 ├── 01-technical-architecture.md    C4 containers/components, ERD, interfaces, dependencies, configuration, deployment
@@ -182,10 +182,10 @@ Every doc starts with **deterministic YAML front-matter** (`ckb_doc`, audience, 
 
 ## 7. Freshness and committing the KB
 
-`ckb.json` records the **source commit that was analysed**. Committing `ckb/` creates a new commit, and that's expected.
+`ckb.json` records the **source commit that was analysed**. Committing `.ckb/` creates a new commit, and that's expected.
 
-> **The KB is fresh at commit `Y` if and only if nothing outside `ckb/` changed between the analysed commit and `Y`:**
-> `git diff --quiet <commit_sha> Y -- . ':(exclude)ckb'`
+> **The KB is fresh at commit `Y` if and only if nothing outside `.ckb/` changed between the analysed commit and `Y`:**
+> `git diff --quiet <commit_sha> Y -- . ':(exclude).ckb'`
 
 | Result | Meaning | `/kb` does |
 |---|---|---|
@@ -205,8 +205,8 @@ The plugin is stricter than the spec rule when deciding to skip:
 Other exit codes: `validate.sh` 0 pass · 1 fail · 2 usage. `finalize.sh` 0 complete · 1 invalid, incomplete or unverified · 2 precondition.
 
 **Recommended workflow:**
-- Generate on your **default branch** after merges, then commit `ckb/` in its own commit. This avoids merge conflicts in generated files.
-- Keep `ckb/` changes out of feature PRs. `.gitattributes` collapses them in GitHub diffs anyway.
+- Generate on your **default branch** after merges, then commit `.ckb/` in its own commit. This avoids merge conflicts in generated files.
+- Keep `.ckb/` changes out of feature PRs. `.gitattributes` collapses them in GitHub diffs anyway.
 - Commit your source before running `/kb`, so `dirty_worktree` is `false` and the KB matches `commit_sha` exactly.
 
 ## 8. Analysing a remote repo (URL mode)
@@ -236,20 +236,20 @@ claude -p "/codebase-kb-engine:kb" --permission-mode acceptEdits \
 jq -r '.result' kb-run.json            # summary, STATUS line, commit hint
 jq '.total_cost_usd, .usage' kb-run.json   # token usage and cost (not visible from inside the session)
 ```
-`ckb/` is inside the working directory, so no `--add-dir` is needed. **In headless mode, use the namespaced form `/codebase-kb-engine:kb`.** In testing, the short `/kb` occasionally reached the model as plain text instead of running the command.
+`.ckb/` is inside the working directory, so no `--add-dir` is needed. **In headless mode, use the namespaced form `/codebase-kb-engine:kb`.** In testing, the short `/kb` occasionally reached the model as plain text instead of running the command.
 
 **Headless, URL mode:** both directories must exist before launch, because Claude Code ignores `--add-dir` for missing paths:
 ```bash
-mkdir -p ~/.cache/ckb-clones ~/ckb/repo-ckb
-CKB_CLONE_BASE=~/.cache/ckb-clones KB_DIR=~/ckb/repo-ckb \
-  claude -p "/codebase-kb-engine:kb https://github.com/org/repo" --add-dir ~/.cache/ckb-clones --add-dir ~/ckb/repo-ckb \
+mkdir -p ~/.cache/ckb-clones ~/.ckb/repo-ckb
+CKB_CLONE_BASE=~/.cache/ckb-clones KB_DIR=~/.ckb/repo-ckb \
+  claude -p "/codebase-kb-engine:kb https://github.com/org/repo" --add-dir ~/.cache/ckb-clones --add-dir ~/.ckb/repo-ckb \
   --permission-mode acceptEdits --allowedTools "Read,Grep,Glob,Bash,Write,Edit,Task,Agent,Skill,TodoWrite"
 ```
 
 **CI pattern** (keeping many repos' KBs current). This is an example to adapt, not a supported action:
 1. On pushes to the default branch, install Claude Code and this plugin (the commands in [§3](#3-install-update-uninstall)).
 2. Run the headless command above. If the KB is fresh, it exits quickly without writing.
-3. If `ckb/` changed, commit it on a bot branch and open a PR, or commit it directly if your policy allows.
+3. If `.ckb/` changed, commit it on a bot branch and open a PR, or commit it directly if your policy allows.
 
 The freshness check is what keeps this cheap at scale: unchanged repos cost one short run.
 
@@ -266,8 +266,8 @@ The freshness check is what keeps this cheap at scale: unchanged repos cost one 
 
 | Action | Result |
 |---|---|
-| Write or Edit inside `<work-tree>/ckb/` (exactly that path, carrying the marker) | allowed |
-| Write or Edit anywhere else, including source, config, a nested `src/ckb/`, look-alikes such as `.ckb-evil/`, `..` paths, and symlinks out of `ckb/` | **blocked** |
+| Write or Edit inside `<work-tree>/.ckb/` (exactly that path, carrying the marker) | allowed |
+| Write or Edit anywhere else, including source, config, a nested `src/.ckb/`, look-alikes such as `.ckb-evil/`, `..` paths, and symlinks out of `.ckb/` | **blocked** |
 | Read, Grep, Glob, and read-only shell (`git status`, `git log`, `ls`, `cat`, `find`, `jq`, …) | allowed |
 | Redirects to files, `rm`, `mv`, `cp`, `tee`, `sed -i`, installers, builds, any git write (`commit`, `push`, `reset`, …), and pipe-to-shell | **blocked** |
 | The plugin's own scripts (checked by real path; look-alike copies are blocked) | allowed, with no approval prompt |
@@ -305,7 +305,7 @@ A blocked action returns a message starting `BLOCKED by codebase-kb-engine read-
 
 | Variable | Used by | Effect |
 |---|---|---|
-| `KB_DIR` | URL mode only | Output directory. It must be outside any git work tree and outside the clone sandbox. It is ignored in local mode, which always uses `ckb/` |
+| `KB_DIR` | URL mode only | Output directory. It must be outside any git work tree and outside the clone sandbox. It is ignored in local mode, which always uses `.ckb/` |
 | `CKB_CLONE_BASE` | URL mode | Sandbox for clones (default `$TMPDIR/ckb-clones`) |
 | `CKB_ENFORCE=always` | Gate | Arm for the whole session (the local wrappers set this) |
 | `CKB_METRICS=off` | Metrics | Disable local run metrics and reports |
@@ -325,7 +325,7 @@ A blocked action returns a message starting `BLOCKED by codebase-kb-engine read-
 | `unsupported ckb_version` | The artifact is from another CKB version | Use a plugin version that matches it, or regenerate |
 | `status: unverified` | `uv` missing, so the schema check couldn't run | Install uv; nothing is marked complete without the schema check |
 | `ckb is a symlink` / `exists and is not a directory` | Unsafe KB path | Replace it with a real directory |
-| `exists, is non-empty, and is not a CKB output dir` | Someone else's `ckb/` | Move it aside, or adopt it with `touch ckb/.ckb-output` |
+| `exists, is non-empty, and is not a CKB output dir` | Someone else's `.ckb/` | Move it aside. A folder holding only producer files is adopted automatically, so this means it holds something else |
 | `is not writable` | Filesystem permissions | Fix the permissions, or analyse a clone with `/kb <url>` |
 | One line: `mkdir -p … && claude --add-dir …` | Claude Code wasn't granted write access to the output dir | Run that line and re-run `/kb` |
 | `FRESHNESS=fresh` and nothing happened | The KB already matches the source | That's expected. Use `/kb --force` to regenerate |
@@ -339,13 +339,13 @@ A blocked action returns a message starting `BLOCKED by codebase-kb-engine read-
 
 **Does it send my code anywhere?** It runs inside Claude Code and reads files the same way Claude Code always does. The plugin adds no network calls. URL mode uses `git clone` with your own credentials.
 
-**Why is `commit_sha` older than the commit that contains `ckb/`?** It records the source commit that was analysed. See [§7](#7-freshness-and-committing-the-kb).
+**Why is `commit_sha` older than the commit that contains `.ckb/`?** It records the source commit that was analysed. See [§7](#7-freshness-and-committing-the-kb).
 
-**Can I edit the generated docs?** Yes, but the next regeneration overwrites them. Put lasting notes somewhere outside `ckb/`.
+**Can I edit the generated docs?** Yes, but the next regeneration overwrites them. Put lasting notes somewhere outside `.ckb/`.
 
-**Why `ckb/` and not a hidden `.ckb/`?** The KB is documentation people should read, so it has to show up in Finder, Explorer and `ls`, not only on GitHub. Versions up to 0.6.x used `.ckb/`; the next `/kb` renames it automatically. If it was committed, run `git add -A .ckb ckb` and commit.
+**Why a hidden `.ckb/`?** The KB is generated output that belongs with the code but should not clutter the repo root in Finder, Explorer or `ls`. Versions 0.7 to 0.9 used a visible `ckb/`; the next `/kb` renames it to `.ckb/` automatically and prints `MIGRATED=ckb->.ckb`. If it was committed, run `git add -A ckb .ckb` and commit. A `.ckb/` folder that holds only producer files and no marker is adopted automatically (`ADOPTED=.ckb`); one with anything else is refused, never overwritten.
 
-**Monorepos?** One KB per git work tree, at its root. Submodules get their own `ckb/`.
+**Monorepos?** One KB per git work tree, at its root. Submodules get their own `.ckb/`.
 
 **Is CKB stable?** Not yet. v0.1 is a draft and may change before 1.0, so pin the plugin version if other tooling depends on the format.
 

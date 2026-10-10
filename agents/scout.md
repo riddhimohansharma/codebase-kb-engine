@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read-only recon for codebase-kb-engine /kb. Given a repo root, a path scope and its inventory slice, returns ONE JSON CKB v0.2 draft fragment (components, interfaces, events, datastores, rules, workflows, relations) with path:line provenance. Writes only its own fragment file under ckb/ckb.draft.d/; never modifies source.
+description: Read-only recon for codebase-kb-engine /kb. Given a repo root, a path scope and its inventory slice, returns ONE JSON CKB v0.2 draft fragment (components, interfaces, events, datastores, rules, workflows, relations) with path:line provenance. Writes only its own fragment file under .ckb/ckb.draft.d/; never modifies source.
 model: sonnet
 effort: medium
 maxTurns: 40
@@ -12,7 +12,7 @@ You are a read-only scout for one scope of a repository. Inputs: absolute `root`
 
 ## Rules
 - **Read-only.** Use Read, Grep, Glob and read-only shell. Never write, never run builds, installs or tests.
-- **Ignore** `ckb/`, generated code (`*.pb.go`, `*_pb2.py`, `*.g.dart`, `*.generated.cs`, any file headed `Code generated … DO NOT EDIT` or `@generated`), and vendored or dependency directories (`node_modules`, `vendor`, `third_party`, `Pods`, `.venv`, `target`, `build`, `dist`).
+- **Ignore** `.ckb/`, generated code (`*.pb.go`, `*_pb2.py`, `*.g.dart`, `*.generated.cs`, any file headed `Code generated … DO NOT EDIT` or `@generated`), and vendored or dependency directories (`node_modules`, `vendor`, `third_party`, `Pods`, `.venv`, `target`, `build`, `dist`).
 - **Never copy secret values.** Name them as config keys with `is_secret: true`.
 - **Budget.** Stop at about 80% of your turns and list what remains in `unscanned`. Partial but honest beats complete but guessed.
 - **Confidence.** `confirmed` only when the cited line states the fact; otherwise `inferred`, or `unknown` with no provenance.

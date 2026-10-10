@@ -98,6 +98,14 @@ ok "coverage: events + config cite the same file"  '[ "$(c .buckets.events.cited
 ok "coverage: uncited sorted, cited<=found (R12)"  '[ "$(c "[.buckets[] | (.uncited == (.uncited | sort)) and .cited <= .found and (.uncited | length) <= .found] | all")" = true ]'
 ok "coverage: uncited capped at 200"               'jq "{files_total: 300, buckets: {config: [range(0;300) | \"f\(.)\"]}}" -n > "$T/biginv.json"; [ "$("$ROOT/scripts/coverage.sh" "$T/biginv.json" "$T/draft.json" | jq ".buckets.config | [.found, (.uncited|length)] | join(\",\")" -r)" = "300,200" ]'
 ok "coverage: bad input -> exit 2"                 'echo "[]" > "$T/bad.json"; "$ROOT/scripts/coverage.sh" "$T/bad.json" "$T/draft.json" >/dev/null 2>&1; [ $? -eq 2 ]'
+# shell scripts are content-sniffed (SRC list); Markdown is deliberately not (docs show env vars and SQL as examples)
+SH="$T/shrepo"; mkdir -p "$SH/scripts" && git -C "$SH" init -q -b main
+printf '#!/usr/bin/env bash\npsql -c "SELECT id FROM orders"\nredis-cli SET k v\n' > "$SH/scripts/seed.sh"
+printf 'Run `psql -c "SELECT id FROM orders"` after setting process.env.DATABASE_URL.\n' > "$SH/README.md"
+git -C "$SH" add -A && git -C "$SH" -c user.email=t@t -c user.name=t commit -qm init
+"$ROOT/scripts/inventory.sh" "$SH" > "$T/sh.json" 2>/dev/null
+ok "shell script content-sniffed: SQL/redis -> datastores" 'jq -e ".buckets.datastores | index(\"scripts/seed.sh\") != null" "$T/sh.json" >/dev/null'
+ok "Markdown not content-sniffed (docs show env/SQL examples)" '! jq -e ".buckets | [.[][]] | index(\"README.md\") != null" "$T/sh.json" >/dev/null'
 echo "inventory runtime on fixture: $((t1 - t0))s (jq $(jq --version 2>&1))"
 echo "inventory tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

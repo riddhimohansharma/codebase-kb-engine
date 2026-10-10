@@ -1,5 +1,5 @@
 ---
-description: Generate the repo's knowledge base in <repo>/ckb/ (8 docs + generated reference + CKB v0.2 ckb.json + manifest.json), ready to commit. Read-only toward the code; skips when the KB is already fresh.
+description: Generate the repo's knowledge base in <repo>/.ckb/ (8 docs + generated reference + CKB v0.2 ckb.json + manifest.json), ready to commit. Read-only toward the code; skips when the KB is already fresh.
 argument-hint: "[--force] [<repo-url> [branch]] [focus]"
 ---
 Produce the knowledge base for the target below. The code is READ-ONLY: the guard allows writes only inside the KB dir, and you never commit, push, or edit source.
@@ -8,17 +8,17 @@ Arguments: `$ARGUMENTS`
 
 **Rule:** run each `${CLAUDE_PLUGIN_ROOT}/scripts/*` command **on its own**, never chained with `;`, `&&` or `|`. Plugin scripts are pre-approved only as standalone commands.
 
-**1. Mode.** Remove a leading `--force` flag if present and remember it. If the next argument starts with `https://`, `http://`, `ssh://`, `git://`, or matches `user@host:path`, this is **URL mode**: the following argument (if present and it contains no spaces) is the branch, and anything after that is focus. Otherwise this is **local mode** (the standard): the target is the current git repo, the KB is `<repo-root>/ckb/`, and all arguments are focus.
+**1. Mode.** Remove a leading `--force` flag if present and remember it. If the next argument starts with `https://`, `http://`, `ssh://`, `git://`, or matches `user@host:path`, this is **URL mode**: the following argument (if present and it contains no spaces) is the branch, and anything after that is focus. Otherwise this is **local mode** (the standard): the target is the current git repo, the KB is `<repo-root>/.ckb/`, and all arguments are focus.
 
 **2. Target + output dir.** Run exactly one of:
 - local: `"${CLAUDE_PLUGIN_ROOT}/scripts/resolve-kb.sh" .`
 - URL: `"${CLAUDE_PLUGIN_ROOT}/scripts/clone.sh" clone "<url>" [branch]`, then note `JOB_DIR`, `CLONE_DIR`, `NAME`, `BRANCH` and `REPO_URL`. Then run `"${CLAUDE_PLUGIN_ROOT}/scripts/resolve-kb.sh" "<CLONE_DIR>" --url-mode --name "<NAME>"`.
 
-If the output includes a `MIGRATED=` line, tell the user the legacy hidden `.ckb/` was renamed to `ckb/` and pass on its commit instruction. Record `REPO_ROOT`, `KB_DIR`, `ADD_DIR_HINT` and the start time (`date -u +%Y-%m-%dT%H:%M:%SZ`). If a script exits non-zero, show its message verbatim, run step 11 if in URL mode, and STOP.
+If the output includes a `MIGRATED=` line, tell the user the visible `ckb/` folder was renamed to the canonical hidden `.ckb/` and pass on its commit instruction. If it includes an `ADOPTED=` line, tell the user an unmarked `.ckb/` holding only producer files was marked as the KB. Record `REPO_ROOT`, `KB_DIR`, `ADD_DIR_HINT` and the start time (`date -u +%Y-%m-%dT%H:%M:%SZ`). If a script exits non-zero, show its message verbatim, run step 11 if in URL mode, and STOP.
 
 **3. Freshness (local mode).** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/freshness.sh" "<REPO_ROOT>"`.
 - If it prints `FRESHNESS=fresh` and `--force` was not given, report that the committed KB already describes the current source (quote the line) and STOP without writing anything.
-- If it prints `FRESHNESS=stale` with an `ANALYSED=` sha, an **incremental refresh** is allowed. Run `git -C "<REPO_ROOT>" diff --name-only <ANALYSED> HEAD -- . ':(exclude)ckb'`, give that list to the scouts as priority, and keep the existing names and headings for entities whose citations still resolve.
+- If it prints `FRESHNESS=stale` with an `ANALYSED=` sha, an **incremental refresh** is allowed. Run `git -C "<REPO_ROOT>" diff --name-only <ANALYSED> HEAD -- . ':(exclude).ckb'`, give that list to the scouts as priority, and keep the existing names and headings for entities whose citations still resolve.
 - If uncommitted source changes exist, warn the user that the KB will describe uncommitted work.
 - **Self-improvement:** if `<KB_DIR>/manifest.json` from a previous run has a `feedback` block, read it. Give `feedback.next_run_focus` (files left uncited and claims downgraded last time) to the scouts as **first priority**. In the final report, list every `feedback.improve_candidates` entry as a suggested rule improvement for the plugin maintainer.
 
@@ -26,7 +26,7 @@ If the output includes a `MIGRATED=` line, tell the user the legacy hidden `.ckb
 
 **4b. Load the contracts** (only now, so a fresh KB costs nothing extra). Invoke the Skill tool for `codebase-kb-engine:kb-docs` (the human docs) and `codebase-kb-engine:ckb-contract` (the machine artifact). Follow both exactly.
 
-**5. Inventory (deterministic).** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/inventory.sh" "<REPO_ROOT>"`. It returns the language mix, workspaces, `areas`, and every candidate file per bucket (manifests, lockfiles, routes, events, datastores, migrations, iac, ci, config, api_specs). Generated, vendored and `ckb/` paths are already excluded. **This list is your checklist:** every manifest and API spec in it must end up cited.
+**5. Inventory (deterministic).** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/inventory.sh" "<REPO_ROOT>"`. It returns the language mix, workspaces, `areas`, and every candidate file per bucket (manifests, lockfiles, routes, events, datastores, migrations, iac, ci, config, api_specs). Generated, vendored and `.ckb/` paths are already excluded. **This list is your checklist:** every manifest and API spec in it must end up cited.
 
 **Context discipline (cost and speed).** You are the orchestrator. **Do not Read source files, fragments, docs or `ckb.json` in full.**
 - Use `"${CLAUDE_PLUGIN_ROOT}/scripts/kbq.sh"` (`summary`, `names`, `ids`, `claims`, `anchors`, `status`). It is pre-approved and returns compact output.
