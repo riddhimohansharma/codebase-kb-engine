@@ -4,6 +4,7 @@
 #        stats.sh --submit [--last N]         PREVIEW the anonymized report that would be filed (sends nothing)
 #        stats.sh --submit --yes [--last N]   file it as a GitHub issue on the plugin repo (needs `gh` signed in)
 # Data: ${CKB_STATE_DIR:-~/.local/state/codebase-kb-engine}/runs.jsonl (written by finalize.sh; CKB_METRICS=off disables).
+# `perf` (per-phase timing, fan-out, token usage, cost) is LOCAL ONLY: shown here and in --json, never in --submit and never upstream.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 SDIR="${CKB_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/codebase-kb-engine}"; RUNS="$SDIR/runs.jsonl"
@@ -28,6 +29,23 @@ summary="$( (if [ "$last" -gt 0 ]; then tail -n "$last" "$RUNS"; else cat "$RUNS
      top_docs_violations: ([$r[].docs_violations | to_entries[]] | group_by(.key) | map({key: .[0].key, value: ([.[].value] | add)}) | sort_by(-.value) | .[0:10] | from_entries),
      top_warnings: ([$r[].warnings | to_entries[]] | group_by(.key) | map({key: .[0].key, value: ([.[].value] | add)}) | sort_by(-.value) | .[0:10] | from_entries),
      environments: {os: ([$r[].os] | unique), jq: ([$r[].jq] | unique), uv_missing_runs: ([$r[] | select(.uv | not)] | length)}}')"
+perf="$( (if [ "$last" -gt 0 ]; then tail -n "$last" "$RUNS"; else cat "$RUNS"; fi) | jq -s '
+  def pct(a; b): if b > 0 then ((a * 1000 / b) | round / 10) else null end;
+  def median: sort | if length == 0 then null else .[(length / 2 | floor)] end;
+  def p90: sort | if length == 0 then null else .[((length * 0.9) | floor | if . >= length then length - 1 else . end)] end;
+  . as $r | [$r[] | select(.token_usage != null)] as $u
+  | {runs_with_timing: ([$r[] | select(.phase_s != null)] | length),
+     finalize_s: {median: ([$r[].finalize_s | select(. != null)] | median), p90: ([$r[].finalize_s | select(. != null)] | p90)},
+     phase_s_median: ([$r[].phase_s | select(. != null) | to_entries[]] | group_by(.key) | map({key: .[0].key, value: ([.[].value] | median)}) | from_entries),
+     attempts_median: ([$r[].finalize_attempts | select(. != null)] | median),
+     fanout_median: {scouts: ([$r[].fanout.scouts | select(. != null)] | median), writers: ([$r[].fanout.writers | select(. != null)] | median), retries: ([$r[].fanout.retries | select(. != null)] | median)},
+     inventory_reused_pct: pct(([$r[] | select(.inventory_source == "reused")] | length); ([$r[] | select(.inventory_source != null)] | length)),
+     usage: {runs: ($u | length), scopes: ($u | map(.usage_scope) | group_by(.) | map({key: .[0], value: length}) | from_entries),
+             input_median: ([$u[].token_usage.input_tokens] | median), output_median: ([$u[].token_usage.output_tokens] | median),
+             cache_read_median: ([$u[].token_usage.cache_read_input_tokens] | median),
+             cache_hit_pct_median: ([$u[].token_usage.cache_hit_pct | select(. != null)] | median),
+             cost_usd_median: ([$u[].cost_usd | select(. != null)] | median), cost_usd_total: ([$u[].cost_usd | select(. != null)] | add)}}')"
+summary_local="$(jq -n --argjson s "$summary" --argjson p "$perf" '$s + {perf: $p}')"
 if [ "$submit" = 1 ]; then
   command -v gh >/dev/null || { echo "gh (GitHub CLI) is required to submit; run: gh auth login" >&2; exit 2; }
   body="$(printf '## Anonymous codebase-kb-engine stats report\n\nGenerated locally by `stats.sh --submit`. Contains only aggregate counts — no repository names, paths, code, URLs or values.\n\n```json\n%s\n```\n' "$summary")"
@@ -37,7 +55,7 @@ if [ "$submit" = 1 ]; then
     || printf '%s' "$body" | gh issue create -R riddhimohansharma/codebase-kb-engine --title "Stats report: $(jq -r .runs <<<"$summary") runs" --body-file -
   exit $?
 fi
-if [ "$json" = 1 ]; then printf '%s\n' "$summary"; exit 0; fi
+if [ "$json" = 1 ]; then printf '%s\n' "$summary_local"; exit 0; fi
 jq -r '
   "codebase-kb-engine — local run stats (\(.runs) runs, \(.repos) repos)",
   "  status:        \(.status | to_entries | map("\(.key)=\(.value)") | join("  "))   complete \(.complete_rate_pct)%",
@@ -45,8 +63,10 @@ jq -r '
   "  confirmed:     \(.confirmed_pct // "?")% of claims   audit supported \(.audit_supported_pct // "n/a")%",
   "  coverage:      \(.coverage_pct | to_entries | map("\(.key) \(.value)%") | join("  "))",
   "  rules failed:  \(.rules_failed | if length == 0 then "none" else (to_entries | map("\(.key)×\(.value)") | join(" ")) end)",
+  (if .perf.runs_with_timing > 0 then "  finalize:      median \(.perf.finalize_s.median // "?")s   p90 \(.perf.finalize_s.p90 // "?")s   phases (median s): \(.perf.phase_s_median | to_entries | map("\(.key) \(.value)") | join("  "))" else empty end),
+  (if .perf.usage.runs > 0 then "  tokens:        \(.perf.usage.runs) runs with usage   median in \(.perf.usage.input_median) out \(.perf.usage.output_median) cache-read \(.perf.usage.cache_read_median)   cache hit \(.perf.usage.cache_hit_pct_median // "?")%   cost median $\(.perf.usage.cost_usd_median // "n/a")" else empty end),
   "  top warnings:", (.top_warnings | to_entries[] | "    \(.value)× \(.key)"),
   "  top doc lint:", (.top_docs_violations | to_entries[] | "    \(.value)× \(.key)"),
   "  versions:      \(.plugin_versions | to_entries | map("\(.key)=\(.value)") | join("  "))",
-  "Share an anonymized copy with the maintainer: stats.sh --submit"' <<<"$summary"
+  "Share an anonymized copy with the maintainer: stats.sh --submit (timing, token and cost data are never included)"' <<<"$summary_local"
 "$ROOT/scripts/telemetry.sh" status | sed -n 1p

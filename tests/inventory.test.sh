@@ -28,7 +28,7 @@ anyb(){ jq -e --arg p "$1" '[.buckets[][]] | index($p) != null' "$I" >/dev/null;
 ok "inventory exits 0 with valid JSON"            '[ $rc -eq 0 ] && jq -e "type == \"object\"" "$I" >/dev/null'
 ok "inventory writes nothing to stderr"            '[ ! -s "$T/inv.err" ]'
 ok "inventory is read-only (git status unchanged)" '[ "$(git -C "$REPO" status --porcelain)" = "$(cat "$T/st.before")" ]'
-ok "top-level keys"                                '[ "$(q "[keys[]] | join(\",\")")" = "areas,buckets,excluded_by,excluded_total,files_total,languages,submodules,workspaces" ]'
+ok "top-level keys"                                '[ "$(q "[keys[]] | join(\",\")")" = "areas,buckets,excluded_by,excluded_total,files_total,languages,sniffed,submodules,workspaces" ]'
 ok "all 10 contract buckets present"               '[ "$(q ".buckets | keys | join(\",\")")" = "api_specs,ci,config,datastores,events,iac,lockfiles,manifests,migrations,routes" ]'
 ok "bucket lists are sorted + unique"              '[ "$(q "[.buckets[] | (. == (unique))] | all")" = true ]'
 # exclusions
@@ -106,6 +106,32 @@ git -C "$SH" add -A && git -C "$SH" -c user.email=t@t -c user.name=t commit -qm 
 "$ROOT/scripts/inventory.sh" "$SH" > "$T/sh.json" 2>/dev/null
 ok "shell script content-sniffed: SQL/redis -> datastores" 'jq -e ".buckets.datastores | index(\"scripts/seed.sh\") != null" "$T/sh.json" >/dev/null'
 ok "Markdown not content-sniffed (docs show env/SQL examples)" '! jq -e ".buckets | [.[][]] | index(\"README.md\") != null" "$T/sh.json" >/dev/null'
+# --out + digest + scout slices (the orchestrator never carries the full inventory; scouts query their own slice)
+KBQ="$T/kbq"; mkdir -p "$KBQ" && touch "$KBQ/.ckb-output"
+"$ROOT/scripts/inventory.sh" "$REPO" --out "$KBQ/ckb.draft.d/.inventory.json" > "$T/digest.json" 2>"$T/dg.err"; drc=$?
+ok "--out exits 0, stdout is a digest, nothing on stderr" '[ $drc -eq 0 ] && [ ! -s "$T/dg.err" ] && jq -e "has(\"scopes\") and has(\"buckets\") and has(\"languages\") and (.areas | has(\"by_tier\")) and (has(\"sniffed\") | not)" "$T/digest.json" >/dev/null'
+ok "--out file is byte-identical to default full output"  'cmp -s "$KBQ/ckb.draft.d/.inventory.json" "$I"'
+ok "digest is small (< 3000 bytes) and counts match full" '[ "$(wc -c < "$T/digest.json" | tr -d " ")" -lt 3000 ] && [ "$(jq -r ".buckets.routes.found" "$T/digest.json")" = "$(q ".buckets.routes | length")" ]'
+ok "--out refuses paths outside <marked KB>/ckb.draft.d/.inventory.json" '! "$ROOT/scripts/inventory.sh" "$REPO" --out "$T/evil.json" >/dev/null 2>&1 && [ ! -e "$T/evil.json" ] && ! "$ROOT/scripts/inventory.sh" "$REPO" --out "$KBQ/other.json" >/dev/null 2>&1 && [ ! -e "$KBQ/other.json" ]'
+mkdir -p "$T/unmarked/ckb.draft.d"
+ok "--out refuses an unmarked KB dir"                      '! "$ROOT/scripts/inventory.sh" "$REPO" --out "$T/unmarked/ckb.draft.d/.inventory.json" >/dev/null 2>&1 && [ ! -e "$T/unmarked/ckb.draft.d/.inventory.json" ]'
+ok "at most 7 scopes (+1 inventory scout = 8)"             '[ "$(jq ".scopes | length" "$T/digest.json")" -le 7 ] && [ "$(jq ".scopes | length" "$T/digest.json")" -ge 1 ]'
+ok "every area has a tier"                                 '[ "$(q "[.areas[].tier] | all(. == \"source\" or . == \"test\" or . == \"docs\")")" = true ]'
+ok "content-sniffed entries are marked and are a subset of their bucket" '[ "$(q ".sniffed.routes | index(\"apps/web/src/server.js\") != null")" = true ] && jq -e ". as \$r | [.sniffed | to_entries[] | .key as \$k | .value[] | select(. as \$p | (\$r.buckets[\$k] | index(\$p)) == null)] | length == 0" "$I" >/dev/null'
+ok "name-matched manifests are never marked as sniffed"    '[ "$(q ".sniffed.manifests // [] | length")" = 0 ]'
+ok "slices partition routes/events/datastores exactly once" 'for sc in $(jq -r ".scopes[].scope" "$T/digest.json"); do "$ROOT/scripts/kbq.sh" inventory "$KBQ" "$sc" | jq -r ".buckets | to_entries[] | select(.key != \"config\") | .key as \$b | .value[] | \"\(\$b) \(.)\""; done | sort > "$T/slice.pairs"; jq -r "[\"routes\",\"events\",\"datastores\"][] as \$b | .buckets[\$b][] | \"\(\$b) \(.)\"" "$I" | sort > "$T/full.pairs"; cmp -s "$T/slice.pairs" "$T/full.pairs" && [ "$(sort "$T/slice.pairs" | uniq -d | wc -l | tr -d " ")" = 0 ]'
+ok "inventory slice holds name-matched mechanical buckets only" '"$ROOT/scripts/kbq.sh" inventory "$KBQ" inventory | jq -e ".scope == \"inventory\" and (.buckets.manifests | index(\"go.work\") != null) and (.buckets | has(\"routes\") | not)" >/dev/null'
+echo '{"entities":{"components":[{"id":"c1","name":"x"}]}}' > "$KBQ/ckb.draft.d/frag.json"
+ok "kbq summary ignores the .inventory.json dotfile, counting only real fragments" '[ "$("$ROOT/scripts/kbq.sh" summary "$KBQ")" = "components=1" ]'
+rm -f "$KBQ/ckb.draft.d/frag.json"
+ok "unknown scope is an error"                             '! "$ROOT/scripts/kbq.sh" inventory "$KBQ" no-such-scope >/dev/null 2>&1'
+ok "kbq inventory without a file is an error"              '! "$ROOT/scripts/kbq.sh" inventory "$T/unmarked" >/dev/null 2>&1'
+# tiers: test/docs areas are down-weighted so scouts spend their budget on source first
+TR="$T/tierrepo"; mkdir -p "$TR/src" "$TR/tests" "$TR/docs" && git -C "$TR" init -q -b main
+for d in src tests docs; do for n in 1 2 3; do echo "x = $n" > "$TR/$d/f$n.py"; done; done
+git -C "$TR" add -A && git -C "$TR" -c user.email=t@t -c user.name=t commit -qm init
+"$ROOT/scripts/inventory.sh" "$TR" > "$T/tier.json" 2>/dev/null
+ok "tier: src=source, tests=test, docs=docs"               '[ "$(jq -r "[.areas[] | \"\(.area):\(.tier)\"] | sort | join(\",\")" "$T/tier.json")" = "docs:docs,src:source,tests:test" ]'
 echo "inventory runtime on fixture: $((t1 - t0))s (jq $(jq --version 2>&1))"
 echo "inventory tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

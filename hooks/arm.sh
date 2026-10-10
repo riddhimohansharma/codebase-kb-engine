@@ -3,9 +3,10 @@
 # UserPromptSubmit: /kb or /kb-validate (optionally namespaced codebase-kb-engine:) ARMS the session;
 #   /map, /hunt, /plan do NOT arm (their names collide with other plugins' commands, e.g. /plan);
 #                   /kb-unlock DISARMS it (only a human-typed prompt can do this — the model cannot).
-# SessionEnd:       disarms. Stale arm files (>24h) are purged.
+# SessionEnd:       disarms. Stale arm files (>24h) are purged. After an interactive /kb, backfills token usage (scripts/usage.sh).
 # Never blocks a prompt (always exit 0).
 set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd -P)"
 payload="$(cat)"
 STATE="${CLAUDE_PLUGIN_DATA:-${TMPDIR:-/tmp}/ckb-guard}/armed"
 jqget(){ command -v jq >/dev/null 2>&1 && printf '%s' "$payload" | jq -r "$1 // empty" 2>/dev/null; }
@@ -17,7 +18,11 @@ mkdir -p "$STATE" 2>/dev/null && chmod 700 "$STATE" 2>/dev/null
 find "$STATE" -type f -mmin +1440 -delete 2>/dev/null
 
 case "$event" in
-  SessionEnd) rm -f "$STATE/$sid"; exit 0 ;;
+  SessionEnd)
+    # an interactive /kb run cannot observe its own usage: fill token_usage from this session's transcript (main + sub-agents).
+    # Best effort and silent: a hook must never fail or slow a session end for this.
+    [ -f "$STATE/$sid.kbstart" ] && { printf '%s' "$payload" | "$HERE/../scripts/usage.sh" backfill >/dev/null 2>&1 || true; }
+    rm -f "$STATE/$sid" "$STATE/$sid.kbstart"; exit 0 ;;
   UserPromptSubmit)
     prompt="$(jqget '.prompt')"; [ -z "$prompt" ] && prompt="$(rawget prompt)"
     if printf '%s' "$prompt" | grep -qE '^[[:space:]]*/(codebase-kb-engine:)?kb-unlock([[:space:]]|$)'; then
@@ -25,6 +30,7 @@ case "$event" in
     fi
     if printf '%s' "$prompt" | grep -qE '^[[:space:]]*/(codebase-kb-engine:)?(kb|kb-validate)([[:space:]]|$)'; then
       : > "$STATE/$sid"
+      [ -e "$STATE/$sid.kbstart" ] || date -u +%Y-%m-%dT%H:%M:%SZ > "$STATE/$sid.kbstart"   # stable start marker (the armed file is rewritten by the guard)
       echo "[codebase-kb-engine] Read-only mode ON for this session: the repo cannot be modified; writes are allowed only inside <repo>/.ckb/ (the knowledge base). The user can type /kb-unlock to release."
     fi ;;
 esac

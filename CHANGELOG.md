@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+- The KB folder is the hidden `.ckb/` (was `ckb/`). A marked `ckb/` migrates automatically, and an unmarked `.ckb/` holding only producer files is adopted; anything else is refused, never overwritten. `COMMIT_HINT` now says `git add .ckb`.
+- Inventory: shell scripts (`sh`, `bash`) are now content-sniffed. Areas carry a `tier` (`source`, `test`, `docs`) and content-sniffed entries are marked in `sniffed`. `inventory.sh --out FILE` writes the full inventory and prints a ~2 KB digest; `kbq.sh inventory` gives each scout only its slice. Scouts are packed into at most 7 scopes plus the inventory scout.
+- `/kb <url>` skips regeneration when the repository's committed `.ckb/` is already fresh: `freshness.sh --shallow` compares trees against the analysed commit, fetched with the new `clone.sh fetch-commit`.
+- `finalize.sh --inventory` reuses the orchestrator's inventory instead of walking the repo again; a digest is refused.
+- `/kb` no longer loads the two contract skills in the orchestrator; scouts and writers load what they need.
+- Run metrics: per-phase timings, fan-out and attempts are recorded in `manifest.json` (`perf`) and the local run record. `scripts/usage.sh` adds token usage and cost: exact for headless runs, and from the session transcript (main thread plus sub-agents, de-duplicated) for interactive ones. The upstream report is now an explicit allowlist, so none of this leaves the machine. `/kb-stats` shows it.
+- `tools/bench.sh`: never reports telemetry, records cache-hit and phase timings, gates wall time and cache-hit rate (recall tolerance 0.05, cost +20%), and `--compare NEW BASE` evaluates the gate offline.
+- `scripts/archetype.sh` classifies a repo (service, monorepo, library, infrastructure, contract) from the inventory; `templates/agent-context/` holds the matching `CLAUDE.md`/`AGENTS.md` seeds, including finished seeds for this project's three repos.
+
 ## [0.9.4] — 2026-10-01
 - Generated reference renamed to `09-reference.md` (was `90-reference.md`; the old file is removed on regeneration).
 - CKB brand icon and logo; README title "Codebase KB Engine — Codebase Knowledge Base Engine".

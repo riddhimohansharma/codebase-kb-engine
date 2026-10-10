@@ -37,3 +37,11 @@ jobs:
         run: tests/docs.test.sh
       - name: Recon (inventory, coverage)
         run: tests/inventory.test.sh
+      - name: Run metrics (usage, benchmark gate)
+        run: |
+          tests/usage.test.sh
+          tests/bench.test.sh
+      - name: Agent context (archetypes, seeds)
+        run: |
+          tests/archetype.test.sh
+          tests/templates.test.sh

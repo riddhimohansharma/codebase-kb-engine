@@ -32,6 +32,12 @@ payload s3 Bash command "$ROOT/scripts/validate.sh $KB/ckb.json" | expect allow 
 payload s3 Write file_path "$REPO/src/a.ts" | expect block "plugin script invocation arms session"
 payload s4 Bash command "KB_DIR=$KB \"$ROOT/scripts/resolve-kb.sh\" $REPO" | expect allow "quoted script with VAR= prefix allowed"
 payload s4 Write file_path "$REPO/src/a.ts" | expect block "...and arms"
+payload s5 Bash command "\"$ROOT/scripts/inventory.sh\" \"$REPO\" --out \"$KB/ckb.draft.d/.inventory.json\"" | expect allow "inventory.sh --out (the orchestrator's real command) allowed"
+payload s5 Bash command "\"$ROOT/scripts/kbq.sh\" inventory \"$KB\" services-gateway" | expect allow "kbq.sh inventory (a scout's first action) allowed"
+payload s5 Bash command "\"$ROOT/scripts/finalize.sh\" \"$REPO\" \"$KB\" --inventory \"$KB/ckb.draft.d/.inventory.json\" --attempt 1 --scouts 7 --writers 2 --retries 0" | expect allow "finalize.sh with --inventory and fan-out counts allowed"
+payload s5 Bash command "\"$ROOT/scripts/freshness.sh\" --shallow \"$T/clones/job.x/proj\"" | expect allow "freshness.sh --shallow allowed"
+payload s5 Bash command "\"$ROOT/scripts/clone.sh\" fetch-commit \"$T/clones/job.x\" 0123456789abcdef0123456789abcdef01234567" | expect allow "clone.sh fetch-commit allowed"
+payload s5 Bash command "cat $REPO/src/a.ts > $KB/ckb.draft.d/.inventory.json" | expect block "...but a redirect into the KB is still blocked (only plugin scripts write)"
 prompt p1 "/plan add a feature"; payload p1 Write file_path "$REPO/src/a.ts" | expect allow "/plan does NOT arm (name collides with other plugins)"
 prompt p2 "/helios-sdlc-devkit:plan x"; payload p2 Write file_path "$REPO/src/a.ts" | expect allow "another plugin's namespaced /plan does not arm"
 prompt p3 "/map"; payload p3 Write file_path "$REPO/src/a.ts" | expect allow "/map does not arm"
@@ -141,5 +147,47 @@ git -C "$cl" push -q origin HEAD:trunk 2>/dev/null && { echo F >> "$T/r"; echo "
 "$ROOT/scripts/clone.sh" destroy "$REPO" >/dev/null 2>&1 && { echo F >> "$T/r"; echo "FAIL destroy outside sandbox"; } || { echo P >> "$T/r"; echo "PASS destroy refuses non-sandbox dir"; }
 [ -d "$REPO/src" ] || { echo F >> "$T/r"; echo "FAIL repo damaged"; }
 "$ROOT/scripts/clone.sh" destroy "$job" >/dev/null && [ ! -e "$job" ] && { echo P >> "$T/r"; echo "PASS clone destroyed, absent after job"; } || { echo F >> "$T/r"; echo "FAIL destroy"; }
+
+echo "## shallow freshness (URL mode): tree compare across clone.sh fetch-commit"
+pf(){ if eval "$2"; then echo P >> "$T/r"; echo "PASS $1"; else echo F >> "$T/r"; echo "FAIL $1"; fi; }
+GT(){ git -C "$1" -c user.email=t@t -c user.name=t "${@:2}"; }
+# remote history: A = source, B = the commit that adds the committed KB (which analysed A)
+SRC="$T/kbsrc"; mkdir -p "$SRC/src" && git -C "$SRC" init -q -b trunk && echo one > "$SRC/src/a.ts" && GT "$SRC" add -A && GT "$SRC" commit -qm A
+SHA_A="$(git -C "$SRC" rev-parse HEAD)"
+mkdir -p "$SRC/.ckb" && printf '{"repo":{"commit_sha":"%s"},"generator":{"version":"0.9.4"}}\n' "$SHA_A" > "$SRC/.ckb/ckb.json" && echo '{"status":"complete"}' > "$SRC/.ckb/manifest.json"
+GT "$SRC" add -A && GT "$SRC" commit -qm "B: add KB"
+cp -R "$SRC" "$T/kbsrc-stale"; cp -R "$SRC" "$T/kbsrc-kbonly"
+echo two > "$T/kbsrc-stale/src/a.ts" && GT "$T/kbsrc-stale" commit -qam "C: change source"
+echo notes > "$T/kbsrc-kbonly/.ckb/notes.md" && GT "$T/kbsrc-kbonly" add -A && GT "$T/kbsrc-kbonly" commit -qm "D: KB-only change"
+mkb(){ git init -q --bare -b trunk "$T/remote/$1.git" && git -C "$2" push -q "$T/remote/$1.git" trunk:trunk; }
+mkb kbfresh "$SRC"; mkb kbstale "$T/kbsrc-stale"; mkb kbonly "$T/kbsrc-kbonly"
+cloneit(){ CKB_ALLOW_FILE_URL=1 "$ROOT/scripts/clone.sh" clone "file://$T/remote/$1.git" 2>/dev/null; }
+kv(){ printf '%s' "$1" | sed -n "s/^$2=//p"; }
+o1="$(cloneit kbfresh)"; j1="$(kv "$o1" JOB_DIR)"; c1="$(kv "$o1" CLONE_DIR)"
+pf "HEAD is the KB commit, not the analysed commit (a SHA-identity check could never hit)" '[ "$(git -C "$c1" rev-parse HEAD)" != "$SHA_A" ] && [ "$(jq -r .repo.commit_sha "$c1/.ckb/ckb.json")" = "$SHA_A" ]'
+fr="$("$ROOT/scripts/freshness.sh" --shallow "$c1")"; rc=$?
+pf "--shallow before fetching: unknown, asks for the analysed commit (exit 3)" '[ $rc -eq 3 ] && printf "%s" "$fr" | grep -q "REASON=need-commit"'
+fo="$(CKB_ALLOW_FILE_URL=1 "$ROOT/scripts/clone.sh" fetch-commit "$j1" "$SHA_A" 2>/dev/null)"; frc=$?
+pf "fetch-commit brings in exactly the analysed commit" '[ $frc -eq 0 ] && printf "%s" "$fo" | grep -qx "FETCHED=$SHA_A" && git -C "$c1" cat-file -e "$SHA_A^{commit}"'
+fr="$("$ROOT/scripts/freshness.sh" --shallow "$c1")"; rc=$?
+pf "--shallow after fetching: fresh by tree compare (exit 0)" '[ $rc -eq 0 ] && printf "%s" "$fr" | grep -q "FRESHNESS=fresh" && printf "%s" "$fr" | grep -q "MODE=shallow-tree-compare"'
+o2="$(cloneit kbstale)"; j2="$(kv "$o2" JOB_DIR)"; c2="$(kv "$o2" CLONE_DIR)"; CKB_ALLOW_FILE_URL=1 "$ROOT/scripts/clone.sh" fetch-commit "$j2" "$SHA_A" >/dev/null 2>&1
+fr="$("$ROOT/scripts/freshness.sh" --shallow "$c2")"; rc=$?
+pf "source changed after the KB was generated: stale (exit 1), counts files" '[ $rc -eq 1 ] && printf "%s" "$fr" | grep -q "FRESHNESS=stale" && printf "%s" "$fr" | grep -q "REASON=1-source-files-changed"'
+o3="$(cloneit kbonly)"; j3="$(kv "$o3" JOB_DIR)"; c3="$(kv "$o3" CLONE_DIR)"; CKB_ALLOW_FILE_URL=1 "$ROOT/scripts/clone.sh" fetch-commit "$j3" "$SHA_A" >/dev/null 2>&1
+fr="$("$ROOT/scripts/freshness.sh" --shallow "$c3")"; rc=$?
+pf "a change inside .ckb alone never makes the KB stale" '[ $rc -eq 0 ] && printf "%s" "$fr" | grep -q "FRESHNESS=fresh"'
+printf '{"status":"incomplete"}\n' > "$c1/.ckb/manifest.json"; fr="$("$ROOT/scripts/freshness.sh" --shallow "$c1")"; rc=$?
+pf "a committed KB whose last run was not complete is never trusted" '[ $rc -eq 3 ] && printf "%s" "$fr" | grep -q "REASON=committed-kb-status-incomplete"'
+LG="$T/legacy"; mkdir -p "$LG/ckb" && git -C "$LG" init -q -b trunk && echo '{}' > "$LG/ckb/ckb.json" && GT "$LG" add -A && GT "$LG" commit -qm x
+fr="$("$ROOT/scripts/freshness.sh" --shallow "$LG")"; rc=$?
+pf "a repo that still commits its KB at ckb/ is reported as legacy, not fresh" '[ $rc -eq 4 ] && printf "%s" "$fr" | grep -q "REASON=legacy-ckb-dir"'
+"$ROOT/scripts/clone.sh" fetch-commit "$j1" "not-a-sha" >/dev/null 2>&1; rc=$?
+pf "fetch-commit refuses anything but a full 40-hex sha" '[ $rc -eq 2 ]'
+"$ROOT/scripts/clone.sh" fetch-commit "$REPO" "$SHA_A" >/dev/null 2>&1; rc=$?
+pf "fetch-commit refuses a dir outside the sandbox" '[ $rc -eq 2 ]'
+CKB_ALLOW_FILE_URL=1 "$ROOT/scripts/clone.sh" fetch-commit "$j1" "0000000000000000000000000000000000000000" >/dev/null 2>&1; rc=$?
+pf "fetch-commit fails cleanly when the remote lacks the commit" '[ $rc -eq 4 ]'
+for j in "$j1" "$j2" "$j3"; do "$ROOT/scripts/clone.sh" destroy "$j" >/dev/null 2>&1; done
 
 pass=$(grep -c P "$T/r"); fail=$(grep -c F "$T/r"); echo "---"; echo "guard tests: $pass passed, $fail failed"; [ "$fail" -eq 0 ]

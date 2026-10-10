@@ -30,7 +30,7 @@ ok "golden: coverage present, no uncited manifests"   '[ "$(q ".coverage.buckets
 ok "golden: repo.url canonical, credentials stripped" '[ "$(q .repo.url)" = "https://github.com/Acme/Shop" ] && ! grep -rq s3cret "$KB"'
 ok "golden: README indexes 8 docs + reference"        '[ "$(grep -cE "^\| \[0[0-9]-" "$KB/README.md")" = 9 ]'
 ok "golden: .gitattributes + .gitignore (draft.d)"    'grep -qx "\* linguist-generated=true" "$KB/.gitattributes" && grep -qx "ckb.draft.d/" "$KB/.gitignore"'
-ok "golden: draft removed; producer did not commit"   '[ ! -e "$KB/ckb.draft.json" ] && grep -q "^COMMIT_HINT=git add ckb" "$T/out" && [ "$(git -C "$GOLD" rev-list --count HEAD)" = 1 ]'
+ok "golden: draft removed; producer did not commit"   '[ ! -e "$KB/ckb.draft.json" ] && grep -q "^COMMIT_HINT=git add .ckb" "$T/out" && [ "$(git -C "$GOLD" rev-list --count HEAD)" = 1 ]'
 cp "$A" "$T/a1"; for f in "$KB"/0*.md; do cp "$f" "$T/$(basename "$f").1"; done
 mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1
 ok "determinism: artifact identical except generated_at" '[ "$(jq -c "del(.repo.generated_at)" "$A" | shasum)" = "$(jq -c "del(.repo.generated_at)" "$T/a1" | shasum)" ]'
@@ -58,9 +58,30 @@ ok "freshness: no artifact -> none (4)"                 '"$F" "$T" "$T/nokb" >/d
 mkdir -p "$KB/ckb.draft.d"; jq '{entities: {components: .entities.components, interfaces: .entities.interfaces}, relations}' "$FX/ckb.json" > "$KB/ckb.draft.d/a.json"
 jq '{entities: (.entities | del(.components, .interfaces)), repo_profile: (.repo_profile // {})}' "$FX/ckb.json" > "$KB/ckb.draft.d/b.json"
 echo '{"entities":{"components":[{"id":"ghost","name":"ghost","module_id":"ghost","kind":"service","confidence":"confirmed","provenance":[]}]}}' > "$KB/ckb.draft.json"
+echo '{"entities":{"components":[{"id":"poison","name":"poison","module_id":"poison","kind":"service","confidence":"confirmed","provenance":[]}]}}' > "$KB/ckb.draft.d/.inventory.json"   # the orchestrator's inventory file lives here; it must never be merged as a fragment
 cp "$FX"/good/*.md "$KB/"; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1
+ok "draft.d: a dotfile (.inventory.json) is never merged as a fragment" '[ "$(q "[.entities.components[].id] | index(\"component:poison\")")" = null ]'
 ok "draft.d: fragments merged, stale ckb.draft.json ignored" '[ "$(q "[.entities.components[].id] | index(\"component:ghost\")")" = null ] && [ "$(q ".entities.interfaces | length")" -gt 0 ]'
 ok "draft.d: removed after a complete run"            '[ "$(jq -r .status "$M")" != complete ] || [ ! -e "$KB/ckb.draft.d" ]'
+
+# ----- W0 instrumentation + inventory reuse -----
+ok "perf: manifest.perf has every finalize phase (non-negative seconds)" 'jq -e "(.perf.phase_s | [.merge,.normalize,.inventory,.coverage,.validate,.docmeta,.reference,.redact,.lint] | all(type == \"number\" and . >= 0)) and (.perf.finalize_s | type == \"number\") and .perf.inventory_source == \"ran\" and .perf.finalize_attempt == 1" "$M" >/dev/null'
+cov_ran="$(jq -c .coverage "$M")"
+"$ROOT/scripts/inventory.sh" "$GOLD" > "$T/gold-inv.json" 2>/dev/null
+mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" --inventory "$T/gold-inv.json" --attempt 2 --scouts 7 --writers 2 --retries 1 >"$T/out" 2>&1
+ok "reuse: full inventory accepted, coverage identical to a fresh walk" '[ "$(jq -r .perf.inventory_source "$M")" = reused ] && [ "$(jq -c .coverage "$M")" = "$cov_ran" ]'
+ok "perf: attempt and fan-out recorded"               'jq -e ".perf.finalize_attempt == 2 and .perf.fanout == {scouts: 7, writers: 2, retries: 1}" "$M" >/dev/null'
+mkdir -p "$T/kbd" && touch "$T/kbd/.ckb-output" && "$ROOT/scripts/inventory.sh" "$GOLD" --out "$T/kbd/ckb.draft.d/.inventory.json" > "$T/gold-digest.json" 2>/dev/null
+mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" --inventory "$T/gold-digest.json" >"$T/out" 2>&1
+ok "reuse: a capped DIGEST is rejected (coverage never sees it)" '[ "$(jq -r .perf.inventory_source "$M")" = ran ] && [ "$(jq -c .coverage "$M")" = "$cov_ran" ]'
+echo '{"files_total": 3, "buckets": {}, "areas": []}' > "$T/bad-inv.json"; echo 'not json' > "$T/bad-inv2.json"
+mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" --inventory "$T/bad-inv.json" >"$T/out" 2>&1
+ok "reuse: empty-bucket inventory rejected, falls back to a walk" '[ "$(jq -r .perf.inventory_source "$M")" = ran ]'
+mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" --inventory "$T/bad-inv2.json" >"$T/out" 2>&1
+ok "reuse: unparseable inventory rejected, falls back to a walk" '[ "$(jq -r .perf.inventory_source "$M")" = ran ]'
+mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" --inventory "$T/does-not-exist.json" >"$T/out" 2>&1
+ok "reuse: missing inventory file falls back to a walk" '[ "$(jq -r .perf.inventory_source "$M")" = ran ] && [ "$(jq -r .status "$M")" = complete ]'
+mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1   # leave the golden KB in its normal state for later sections
 
 # ===================== 2. polyglot normalization (docs don't match -> incomplete, JSON still checked) =====================
 POLY="$T/poly"; PD="$ROOT/tests/fixtures/polyglot-draft.json"
@@ -111,6 +132,18 @@ ok "stats: summary counts runs and statuses"         'jq -e ".runs >= 3 and (.st
 ok "stats: human summary renders"                    'grep -q "local run stats" "$T/stats.txt" && grep -q "^telemetry:" "$T/stats.txt"'
 "$ROOT/scripts/stats.sh" --submit > "$T/sub" 2>&1
 ok "stats: --submit without --yes only previews"     'grep -q "PREVIEW ONLY" "$T/sub" || grep -q "GitHub CLI) is required" "$T/sub"'
+# stats: local-only perf (timing, fan-out, tokens, cost) shows locally and in --json, and is NEVER part of --submit
+mkdir -p "$T/state2"; { jq -nc '{schema:1,day:"2026-10-10",plugin_version:"0.9.4",ckb_version:"0.2",mode:"local",status:"complete",repo:"aaaaaaaaaaaa",duration_s:100,os:"darwin",jq:"jq-1.7",uv:true,size:"<100",coverage:{},entities:{},confidence:{confirmed:1,inferred:0,unknown:0},validation:{},docs_violations:{},warnings:{},audit:null,job_id:"j1",finished_at:"2026-10-10T00:00:00Z",phase_s:{inventory:9.5,lint:1.0},finalize_s:20,finalize_attempts:1,fanout:{scouts:7,writers:2,retries:0},inventory_source:"reused",token_usage:{input_tokens:10,output_tokens:20,cache_read_input_tokens:100,cache_hit_pct:90.9},cost_usd:1.5,usage_scope:"headless"}'
+  jq -nc '{schema:1,day:"2026-10-10",plugin_version:"0.9.3",ckb_version:"0.2",mode:"local",status:"complete",repo:"bbbbbbbbbbbb",duration_s:200,os:"darwin",jq:"jq-1.7",uv:true,size:"<100",coverage:{},entities:{},confidence:{confirmed:1,inferred:0,unknown:0},validation:{},docs_violations:{},warnings:{},audit:null}'; } > "$T/state2/runs.jsonl"
+CKB_STATE_DIR="$T/state2" "$ROOT/scripts/stats.sh" --json > "$T/stats2.json"
+ok "stats --json: per-phase medians, fan-out and usage aggregated" 'jq -e ".perf.runs_with_timing == 1 and .perf.phase_s_median.inventory == 9.5 and .perf.fanout_median.scouts == 7 and .perf.inventory_reused_pct == 100 and .perf.usage.runs == 1 and .perf.usage.output_median == 20 and .perf.usage.cost_usd_median == 1.5 and .perf.usage.scopes.headless == 1" "$T/stats2.json" >/dev/null'
+ok "stats --json: a legacy record without the new fields is tolerated" 'jq -e ".runs == 2" "$T/stats2.json" >/dev/null'
+CKB_STATE_DIR="$T/state2" "$ROOT/scripts/stats.sh" > "$T/stats2.txt" 2>&1
+ok "stats: human summary shows finalize phases and token usage" 'grep -q "finalize:" "$T/stats2.txt" && grep -q "phases (median s): inventory 9.5" "$T/stats2.txt" && grep -q "tokens:" "$T/stats2.txt" && grep -q "cost median \$1.5" "$T/stats2.txt"'
+mkdir -p "$T/fakegh" && printf '#!/bin/sh\nexit 0\n' > "$T/fakegh/gh" && chmod +x "$T/fakegh/gh"   # a stub gh so the body is printed whether or not gh is installed
+PATH="$T/fakegh:$PATH" CKB_STATE_DIR="$T/state2" "$ROOT/scripts/stats.sh" --submit > "$T/sub2" 2>&1
+ok "stats --submit prints a real body (the privacy check below is not vacuous)" 'grep -q "\"runs\": 2" "$T/sub2" && grep -q "PREVIEW ONLY" "$T/sub2"'
+ok "stats --submit (public issue body) never contains timing, token or cost data" '! grep -qiE "perf|phase_s|token|cost|fanout|finalize_s|cache_hit" "$T/sub2"'
 
 # telemetry: on by default with notice; opt-outs honoured; payload is the anonymous record and passes the relay's validator
 FK="$T/fakebin"; mkdir -p "$FK"; cat > "$FK/curl" <<'FAKE'
@@ -125,6 +158,9 @@ ok "telemetry: default ON sends one report"           '[ "$(grep -c . "$CURL_LOG
 ok "telemetry: first run prints the notice once"      'grep -q "^TELEMETRY_NOTICE=" "$T/out"'
 tel; ok "telemetry: notice not repeated"              '! grep -q "^TELEMETRY_NOTICE=" "$T/out" && [ "$(grep -c . "$CURL_LOG")" = 2 ]'
 ok "telemetry: payload is anonymous"                  '! grep -qE "/Users/|/private/|https?://|github|acme|poly|DATABASE_URL" "$CURL_LOG"'
+ok "telemetry: upstream payload is exactly the schema-1 field set" 'head -1 "$CURL_LOG" | jq -e "keys == [\"audit\",\"ckb_version\",\"confidence\",\"coverage\",\"day\",\"docs_violations\",\"duration_s\",\"entities\",\"jq\",\"mode\",\"os\",\"plugin_version\",\"repo\",\"schema\",\"size\",\"status\",\"uv\",\"validation\",\"warnings\"]" >/dev/null'
+ok "telemetry: local-only fields never leave the machine" '! grep -qE "job_id|phase_s|finalize_s|fanout|token_usage|cost_usd|usage_scope|finished_at|inventory_source" "$CURL_LOG"'
+ok "metrics: local record carries job id, per-phase timing and fan-out" 'tail -1 "$RUNS" | jq -e "(.job_id | test(\"^[0-9a-f]{16}$\")) and (.phase_s | has(\"inventory\") and has(\"lint\")) and has(\"fanout\") and has(\"finished_at\") and .token_usage == null" >/dev/null'
 if command -v node >/dev/null && [ -f "$ROOT/../codebase-kb-telemetry/src/index.js" ]; then
   head -1 "$CURL_LOG" > "$T/rec.json"
   ok "telemetry: payload passes the relay validator"  'node --input-type=module -e "import {validate} from \"$ROOT/../codebase-kb-telemetry/src/index.js\"; import fs from \"fs\"; const e = validate(JSON.parse(fs.readFileSync(\"$T/rec.json\",\"utf8\"))); if (e.length) { console.error(e); process.exit(1); }"'

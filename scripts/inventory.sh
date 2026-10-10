@@ -1,16 +1,29 @@
 #!/usr/bin/env bash
-# inventory.sh <repo_root> — deterministic, read-only file inventory for /kb recon (CKB v0.2 coverage buckets).
+# inventory.sh <repo_root> [--out FILE] — deterministic, read-only file inventory for /kb recon (CKB v0.2 coverage buckets).
 # Lists files with `git ls-files -co --exclude-standard` (plain `find` outside git), drops generated/vendored/
 # third-party/submodule/ckb paths, buckets the rest (manifests, lockfiles, routes, events, datastores, migrations,
 # iac, ci, config, api_specs) by name and by bounded content grep (text files < 1MB), detects workspaces, and
 # splits the repo into areas for parallel scouts. Prints ONE JSON object on stdout; never writes to the repo.
+# --out FILE writes the FULL JSON to FILE (must be <marked KB dir>/ckb.draft.d/.inventory.json) and prints only a small
+# digest on stdout, so the orchestrator never carries the whole inventory in context (scouts use `kbq.sh inventory`).
 # Temp files live in a private mktemp dir that is removed on exit. bash 3.2+, BSD/GNU userland, jq 1.6+.
 set -euo pipefail
 export LC_ALL=C
 die(){ echo "inventory: $*" >&2; exit 2; }
-[ $# -ge 1 ] || die "usage: inventory.sh <repo_root>"
+HERE="$(cd "$(dirname "$0")" && pwd -P)"
+OUT=""; REPO=""
+while [ $# -gt 0 ]; do
+  case "$1" in --out) [ $# -ge 2 ] || die "--out needs a file"; OUT="$2"; shift ;; -*) die "unknown option: $1" ;; *) REPO="$1" ;; esac; shift
+done
+[ -n "$REPO" ] || die "usage: inventory.sh <repo_root> [--out FILE]"
 command -v jq >/dev/null 2>&1 || die "jq is required"
-ROOT="$(cd "$1" 2>/dev/null && pwd -P)" || die "not a directory: $1"
+ROOT="$(cd "$REPO" 2>/dev/null && pwd -P)" || die "not a directory: $REPO"
+if [ -n "$OUT" ]; then   # plugin scripts are pre-approved by the guard, so --out must not become an arbitrary file write
+  case "$OUT" in /*) ;; *) OUT="$PWD/$OUT" ;; esac
+  odir="$(dirname "$OUT")"
+  [ "$(basename "$OUT")" = .inventory.json ] && [ "$(basename "$odir")" = ckb.draft.d ] && [ -f "$(dirname "$odir")/.ckb-output" ] && [ ! -L "$odir" ] && [ ! -L "$OUT" ] \
+    || die "--out must be <marked KB dir>/ckb.draft.d/.inventory.json (REFUSED: $OUT)"
+fi
 T="$(mktemp -d "${TMPDIR:-/tmp}/ckb-inv.XXXXXX")"; trap 'rm -rf "$T"' EXIT
 cd "$ROOT"
 MAXB=1024   # content sniffing cap in KiB (files larger than this are never read)
@@ -157,6 +170,8 @@ awk -F'\t' '$1=="G" {print $2}' "$T/cb" | sort -u > "$T/gen"
 awk 'FILENAME==ARGV[1] { G[$0]=1; next } !($0 in G)' "$T/gen" "$T/inc0" > "$T/inc"
 # final bucket lines (name-based + content-based), minus generated files
 awk -F'\t' 'FILENAME==ARGV[1] { G[$0]=1; next } $1=="B" && !($3 in G) { print $2 "\t" $3; next } FILENAME==ARGV[3] && $1!="G" && !($2 in G) { print $1 "\t" $2 }' "$T/gen" "$T/cls" "$T/cb" | sort -u > "$T/bk"
+# content-sniffed-only entries (not matched by name): scouts get these capped, coverage still counts them all
+awk -F'\t' 'FILENAME==ARGV[1] { if ($1=="B") N[$2 "\t" $3]=1; next } !($0 in N) { print }' "$T/cls" "$T/bk" > "$T/sniffed"
 # ---------- 5. languages (extension -> linguist name) ----------
 cat > "$T/lang.awk" <<'AWK'
 BEGIN {
@@ -270,10 +285,13 @@ awk -v lim="$SPLIT" 'FILENAME==ARGV[1] { M[$0]=1; t = $0; if (t ~ /\//) { sub(/\
     for (k in C) print C[k] "\t" k "\t" ((k in MEM) ? 1 : 0) }' "$T/members" "$T/inc" | sort -t "$(printf '\t')" -k1,1nr -k2,2 > "$T/areas"
 # ---------- 8. assemble ----------
 cnt(){ awk -F'\t' -v w="$1" '$1=="X" && $2==w {n++} END {print n+0}' "$T/cls"; }
-jq -n --rawfile inc "$T/inc" --rawfile bk "$T/bk" --rawfile lang "$T/lang" --rawfile areas "$T/areas" --slurpfile ws "$T/ws.json" \
+jq -n --rawfile inc "$T/inc" --rawfile bk "$T/bk" --rawfile sn "$T/sniffed" --rawfile lang "$T/lang" --rawfile areas "$T/areas" --slurpfile ws "$T/ws.json" \
   --argjson ex_dir "$(cnt vendored_dir)" --argjson ex_name "$(cnt generated_name)" --argjson ex_ckb "$(cnt ckb)" \
   --argjson ex_sub "$(cnt submodule)" --argjson ex_hdr "$(awk 'END{print NR}' "$T/gen")" --argjson submods "$submods" '
   def lines($s): $s | split("\n") | map(select(length > 0));
+  def tier: (split("/") | map(ascii_downcase)) as $s
+    | if ($s | any(test("^(tests?|__tests__|spec|specs|testdata|fixtures?|e2e|cypress|playwright)$"))) then "test"
+      elif ($s | any(test("^(docs?|documentation|website|site|examples?|samples?|demos?)$"))) then "docs" else "source" end;
   def slug: ascii_downcase | gsub("[^a-z0-9]+"; "-") | gsub("^-+|-+$"; "") | (if . == "" then "root" else . end);
   ["manifests","lockfiles","routes","events","datastores","migrations","iac","ci","config","api_specs"] as $B
   | (lines($bk) | map(split("\t")) | group_by(.[0]) | map({key: .[0][0], value: (map(.[1]) | unique)}) | from_entries) as $bm
@@ -285,8 +303,15 @@ jq -n --rawfile inc "$T/inc" --rawfile bk "$T/bk" --rawfile lang "$T/lang" --raw
       languages: (lines($lang) | map(split("\t") | {name: .[1], files: (.[0] | tonumber)}) | sort_by((0 - .files), .name)),
       workspaces: [$ws[0][] | {tool, root, members}],
       buckets: (reduce $B[] as $b ({}; .[$b] = ($bm[$b] // []))),
+      sniffed: (lines($sn) | map(split("\t")) | group_by(.[0]) | map({key: .[0][0], value: (map(.[1]) | unique)}) | from_entries),
       areas: (lines($areas) | map(split("\t") | {path: .[1], files: (.[0] | tonumber), workspace_member: (.[2] == "1")})
               | reduce .[] as $a ({used: {}, out: []}; ($a.path | slug) as $s
                   | (if .used[$s] then ([range(2; 10000) | ($s + "-" + tostring)] as $c | first($c[] as $x | select(.used[$x] | not) | $x)) else $s end) as $u
-                  | .used[$u] = true | .out += [{area: $u, path: $a.path, files: $a.files, workspace_member: $a.workspace_member}]) | .out)
-    }'
+                  | .used[$u] = true | .out += [{area: $u, path: $a.path, files: $a.files, workspace_member: $a.workspace_member, tier: ($a.path | tier)}]) | .out)
+    }' > "$T/inv.json"
+if [ -n "$OUT" ]; then
+  mkdir -p "$odir" && cp "$T/inv.json" "$OUT.tmp.$$" && mv -f "$OUT.tmp.$$" "$OUT" || die "could not write $OUT"
+  jq -c --arg mode digest --arg scope "" --argjson maxscopes 7 -f "$HERE/inventory-digest.jq" "$OUT"
+else
+  cat "$T/inv.json"
+fi

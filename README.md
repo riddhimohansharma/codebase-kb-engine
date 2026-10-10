@@ -145,7 +145,7 @@ All three are read-only by instruction. They don't arm the gate, because short n
 
 ## Anonymous usage reports (on by default)
 
-To improve the plugin, each `/kb` run shares **one anonymous report** with the maintainer. The first run shows a notice.
+To improve the plugin, each `/kb` run shares **one anonymous report** with the maintainer. The first run shows a notice. Per-phase timings, token usage and cost are recorded locally for benchmarking and are never part of that report.
 
 **Sent:** plugin and spec versions, status, duration, repo-size bucket, coverage counts per bucket, entity and confidence counts, warning **category IDs**, doc-lint counts, failed rule IDs, claim-audit pass counts, OS and tool versions. The repo appears only as a **salted hash** whose salt never leaves your machine.
 

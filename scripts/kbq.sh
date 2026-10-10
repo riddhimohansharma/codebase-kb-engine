@@ -8,7 +8,9 @@
 #   kbq.sh claims <kb_dir> [max=15]         audit sample: confirmed claims as JSON [{id, claim, path, line}]
 #   kbq.sh anchors <doc.md>                 headings with their anchors and ckb: markers
 #   kbq.sh status <kb_dir>                  status, validation, docs violations, coverage, top warnings from manifest.json
+#   kbq.sh inventory <kb_dir> [scope]       digest of ckb.draft.d/.inventory.json, or ONE scout's slice (an area scope, or `inventory`)
 set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd -P)"
 die(){ echo "kbq: $*" >&2; exit 2; }
 src(){ # JSON array of draft fragments, else the artifact
   if ls "$1"/ckb.draft.d/*.json >/dev/null 2>&1; then jq -s '.' "$1"/ckb.draft.d/*.json
@@ -40,5 +42,9 @@ case "$cmd" in
            ((.validation.docs // {}) | to_entries[] | "  docs: \(.key): \(.value[0:8] | join("; "))"),
            ((.coverage.buckets // {}) | to_entries[] | select(.value.found > 0) | "  coverage: \(.key) \(.value.cited)/\(.value.found)" + (if (.value.uncited | length) > 0 then " uncited: \(.value.uncited[0:10] | join(", "))" else "" end)),
            (.warnings // [] | .[0:15][] | "  warn: \(.)")' "$1/manifest.json" ;;
-  *) die "usage: kbq.sh summary|names|ids|claims|anchors|status ..." ;;
+  inventory) [ -d "${1:-}" ] || die "usage: kbq.sh inventory <kb_dir> [scope]"
+    f="$1/ckb.draft.d/.inventory.json"; [ -f "$f" ] || die "no inventory at $f (run: inventory.sh <repo> --out $f)"
+    if [ -n "${2:-}" ]; then jq -c --arg mode slice --arg scope "$2" --argjson maxscopes 7 -f "$HERE/inventory-digest.jq" "$f"
+    else jq -c --arg mode digest --arg scope "" --argjson maxscopes 7 -f "$HERE/inventory-digest.jq" "$f"; fi ;;
+  *) die "usage: kbq.sh summary|names|ids|claims|anchors|status|inventory ..." ;;
 esac

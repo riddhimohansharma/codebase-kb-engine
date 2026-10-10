@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # clone.sh — ephemeral, push-disabled shallow clone for repo-URL mode.
 # Usage: clone.sh clone <url> [branch]   -> prints CLONE_DIR, JOB_DIR, NAME, BRANCH, COMMIT_SHA, REPO_URL
+#        clone.sh fetch-commit <job_dir> <sha> -> fetches ONE commit (depth 1) into the job's clone, so freshness can diff trees
 #        clone.sh destroy <job_dir>      -> deletes the sandbox job dir, verifies it is gone
 # Contract: never pushes; retains no source after destroy; refuses URLs with embedded credentials.
 # Sandbox base: $CKB_CLONE_BASE, else ${TMPDIR:-/tmp}/ckb-clones. Only dirs carrying a .ckb-clone marker are ever deleted.
@@ -36,6 +37,22 @@ case "${1:-}" in
     sha="$(git -C "$job/$name" rev-parse HEAD)"
     printf 'JOB_DIR=%s\nCLONE_DIR=%s\nNAME=%s\nBRANCH=%s\nCOMMIT_SHA=%s\nREPO_URL=%s\n' \
       "$job" "$job/$name" "$name" "$actual_branch" "$sha" "$url" ;;
+  fetch-commit)
+    job="${2:-}"; sha="${3:-}"
+    [ -n "$job" ] && [ -d "$job" ] && [ -n "$sha" ] || die 2 "usage: clone.sh fetch-commit <job_dir> <sha>"
+    printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$' || die 2 "REFUSED: not a full 40-hex commit sha: $sha"
+    rbase="$(cd "$base" 2>/dev/null && pwd -P)" || die 2 "sandbox base missing: $base"
+    rjob="$(cd "$job" && pwd -P)"
+    case "$rjob" in "$rbase"/job.*) ;; *) die 2 "REFUSED: '$job' is not a sandbox job dir under $rbase" ;; esac
+    [ -f "$rjob/.ckb-clone" ] || die 2 "REFUSED: '$job' has no .ckb-clone marker"
+    fileproto=never; [ "${CKB_ALLOW_FILE_URL:-}" = 1 ] && fileproto=always
+    clone_dir="$(find "$rjob" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | head -1)"
+    [ -d "$clone_dir/.git" ] || die 2 "no clone found in $rjob"
+    # same hardening as the clone itself: no hooks, no tags, depth 1; never pushes
+    git -C "$clone_dir" -c core.hooksPath=/dev/null -c protocol.file.allow=$fileproto fetch --quiet --depth 1 --no-tags origin "$sha" >&2 \
+      || die 4 "could not fetch commit ${sha:0:12} (the remote may not allow fetching it by sha)"
+    git -C "$clone_dir" cat-file -e "$sha^{commit}" 2>/dev/null || die 4 "fetched, but commit ${sha:0:12} is not present"
+    printf 'FETCHED=%s\n' "$sha" ;;
   destroy)
     job="${2:-}"; [ -n "$job" ] && [ -d "$job" ] || die 2 "usage: clone.sh destroy <job_dir> (must exist)"
     rbase="$(cd "$base" 2>/dev/null && pwd -P)" || die 2 "sandbox base missing: $base"
@@ -45,5 +62,5 @@ case "${1:-}" in
     rm -rf "$rjob"
     [ -e "$rjob" ] && die 4 "DESTROY FAILED: $rjob still exists"
     printf 'DESTROYED=%s\n' "$rjob" ;;
-  *) die 2 "usage: clone.sh clone <url> [branch] | clone.sh destroy <job_dir>" ;;
+  *) die 2 "usage: clone.sh clone <url> [branch] | clone.sh fetch-commit <job_dir> <sha> | clone.sh destroy <job_dir>" ;;
 esac

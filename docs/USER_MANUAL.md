@@ -235,7 +235,9 @@ claude -p "/codebase-kb-engine:kb" --permission-mode acceptEdits \
   --output-format json > kb-run.json
 jq -r '.result' kb-run.json            # summary, STATUS line, commit hint
 jq '.total_cost_usd, .usage' kb-run.json   # token usage and cost (not visible from inside the session)
+"${CLAUDE_PLUGIN_ROOT:-/path/to/codebase-kb-engine}/scripts/usage.sh" record .ckb kb-run.json   # keep them: patches .ckb/manifest.json and the local run record
 ```
+Interactive runs record their token usage automatically when the session ends (main thread plus every sub-agent, from the session transcript). If the transcript is unavailable the usage stays `null`; it is never estimated.
 `.ckb/` is inside the working directory, so no `--add-dir` is needed. **In headless mode, use the namespaced form `/codebase-kb-engine:kb`.** In testing, the short `/kb` occasionally reached the model as plain text instead of running the command.
 
 **Headless, URL mode:** both directories must exist before launch, because Claude Code ignores `--add-dir` for missing paths:
@@ -277,9 +279,9 @@ A blocked action returns a message starting `BLOCKED by codebase-kb-engine read-
 
 ## 10a. Metrics and privacy
 
-**Local record.** Every run appends one anonymous record to `$CKB_STATE_DIR/runs.jsonl` (default `~/.local/state/codebase-kb-engine/`). `/kb-stats [--last N] [--json]` summarizes these records.
+**Local record.** Every run appends one anonymous record to `$CKB_STATE_DIR/runs.jsonl` (default `~/.local/state/codebase-kb-engine/`). `/kb-stats [--last N] [--json]` summarizes these records. The local record also carries **local-only** data for benchmarking: per-phase finalize timings, fan-out counts, an opaque run id and, once known, token usage and cost. Those fields are shown by `/kb-stats` and `--json`, and never leave your machine.
 
-**Anonymous report: on by default.** The same record is sent to the maintainer after each run: in the background, over HTTPS, with a 3-second timeout, so it never slows or fails a run. A one-time notice appears on the first run.
+**Anonymous report: on by default.** The record below, minus the local-only fields above (an explicit allowlist in `scripts/finalize.sh`), is sent to the maintainer after each run: in the background, over HTTPS, with a 3-second timeout, so it never slows or fails a run. A one-time notice appears on the first run.
 
 | Sent | Never sent |
 |---|---|
@@ -289,7 +291,7 @@ A blocked action returns a message starting `BLOCKED by codebase-kb-engine read-
 | entity and relation counts, confidence counts | IP address, user agent, identity |
 | failed rule IDs, doc-lint counts per file name | free-text warnings (only fixed category IDs) |
 | warning category IDs (e.g. `relation_not_allowed`) | |
-| claim-audit pass counts; OS, jq and uv presence | |
+| claim-audit pass counts; OS, jq and uv presence | per-phase timings, fan-out, token counts, cost, run id |
 | `repo`: a salted 12-character hash (the salt stays on your machine) | |
 
 **Opting out:**

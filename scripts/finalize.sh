@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # finalize.sh — build ckb.json + manifest.json from the model-written draft, then validate.
 # Usage: finalize.sh <repo_root> <kb_dir> [--mode local|url] [--url URL] [--branch BRANCH] [--started-at ISO] [--audit S/T]
+#        [--inventory FILE] [--attempt N] [--scouts N] [--writers N] [--retries N]
+# --inventory reuses the orchestrator's full inventory (the repo is read-only for the run) instead of walking the tree again.
+# --attempt/--scouts/--writers/--retries are recorded in manifest.perf and the LOCAL run record only (never sent upstream).
 # Reads <kb_dir>/ckb.draft.json; writes <kb_dir>/ckb.json and <kb_dir>/manifest.json; removes the draft on success.
 # Exit: 0 complete · 1 invalid/incomplete/unverified (draft kept; a previous valid ckb.json is never overwritten by an invalid one) · 2 usage/precondition.
 # Status: complete only when BOTH schema (uvx) and semantic checks pass; schema skipped => unverified.
@@ -8,12 +11,18 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 DOCS="00-overview.md 01-technical-architecture.md 02-functional-workflows.md 03-business-rules.md 04-system-context-and-gaps.md 05-operations.md 06-security-and-data.md 07-decisions.md"
 die(){ code="$1"; shift; printf '%s\n' "$@" >&2; exit "$code"; }
+# per-phase wall time (ms) so a slow run is attributable without re-running it; recorded in manifest.perf
+now_ms(){ perl -MTime::HiRes=time -e 'printf "%d", time*1000' 2>/dev/null || echo $(( $(date +%s) * 1000 )); }
+PH_T0="$(now_ms)"; PH_START="$PH_T0"; PHASES=""
+phase(){ local t; t="$(now_ms)"; PHASES="$PHASES$1=$((t - PH_T0)) "; PH_T0="$t"; }
 repo="${1:-}"; kb="${2:-}"; shift 2 2>/dev/null || die 2 "usage: finalize.sh <repo_root> <kb_dir> [opts]"
-mode=local; url=""; branch=""; started=""; audit=""
+mode=local; url=""; branch=""; started=""; audit=""; inv_in=""; attempt=1; n_scouts=""; n_writers=""; n_retries=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --mode) mode="$2"; shift ;; --url) url="$2"; shift ;; --branch) branch="$2"; shift ;; --started-at) started="$2"; shift ;;
     --audit) audit="$2"; shift ;;   # "<supported>/<total>" from the claim audit
+    --inventory) inv_in="$2"; shift ;; --attempt) attempt="$2"; shift ;;
+    --scouts) n_scouts="$2"; shift ;; --writers) n_writers="$2"; shift ;; --retries) n_retries="$2"; shift ;;
     *) die 2 "unknown option: $1" ;;
   esac; shift
 done
@@ -34,6 +43,7 @@ if [ -d "$kb/ckb.draft.d" ] && ls "$kb"/ckb.draft.d/*.json >/dev/null 2>&1; then
 fi
 [ -f "$draft" ] || die 2 "missing draft: $draft (or $kb/ckb.draft.d/*.json)"
 jq -e . "$draft" >/dev/null 2>&1 || die 1 "draft is not valid JSON: $draft"
+phase merge
 
 git -C "$repo" rev-parse HEAD >/dev/null 2>&1 || die 2 "REFUSED: '$repo' is not a git work tree with a commit; CKB requires commit_sha."
 sha="$(git -C "$repo" rev-parse HEAD)"
@@ -88,9 +98,18 @@ printf '%s' "$out" | jq '.artifact' > "$kb/ckb.json.candidate"
 # local -> final id map for the docs; also accept markers written as <type>:<local-id> (e.g. ckb:workflow:core.wf.x)
 printf '%s' "$out" | jq '(.idmap // {}) | to_entries | map(., {key: ((.value | split(":")[0]) + ":" + .key), value}) | from_entries' > "$tmpd/idmap.json"
 
+phase normalize
 # Coverage: deterministic inventory of the repo vs. what the draft cites (completeness gate) + repo_profile languages
-cov_uncited_manifests=""
-if [ -x "$ROOT/scripts/inventory.sh" ] && [ -x "$ROOT/scripts/coverage.sh" ] && "$ROOT/scripts/inventory.sh" "$repo" > "$tmpd/inventory.json" 2>"$tmpd/inv.err"; then
+cov_uncited_manifests=""; inv_ok=0; inv_source=none
+if [ -x "$ROOT/scripts/inventory.sh" ] && [ -x "$ROOT/scripts/coverage.sh" ]; then
+  if [ -n "$inv_in" ] && jq -e 'type == "object" and has("files_total") and (.areas | type == "array") and (.buckets | type == "object" and ([.[]] | length > 0 and all(type == "array")))' "$inv_in" >/dev/null 2>&1 && cp "$inv_in" "$tmpd/inventory.json"; then
+    inv_ok=1; inv_source=reused   # the FULL inventory: coverage `found` counts must never come from a capped digest
+  elif "$ROOT/scripts/inventory.sh" "$repo" > "$tmpd/inventory.json" 2>"$tmpd/inv.err"; then
+    inv_ok=1; inv_source=ran
+  fi
+fi
+phase inventory
+if [ "$inv_ok" = 1 ]; then
   "$ROOT/scripts/coverage.sh" "$tmpd/inventory.json" "$kb/ckb.json.candidate" > "$tmpd/coverage.json" 2>>"$tmpd/inv.err" || : > "$tmpd/coverage.json"
   if jq -e 'type == "object"' "$tmpd/coverage.json" >/dev/null 2>&1; then
     jq --slurpfile cov "$tmpd/coverage.json" --slurpfile inv "$tmpd/inventory.json" '
@@ -101,6 +120,7 @@ if [ -x "$ROOT/scripts/inventory.sh" ] && [ -x "$ROOT/scripts/coverage.sh" ] && 
     cov_uncited_manifests="$(jq -r '.buckets.manifests.uncited // [] | .[]' "$tmpd/coverage.json")"
   fi
 fi
+phase coverage
 
 vout="$("$ROOT/scripts/validate.sh" "$kb/ckb.json.candidate")"; vrc=$?
 last="$(printf '%s\n' "$vout" | tail -1)"
@@ -110,13 +130,16 @@ status=complete; [ $vrc -eq 0 ] || status=invalid
 [ "$status" = complete ] && [ "$structural" != pass ] && status=unverified   # never "complete" without the schema check
 if [ "$status" = invalid ]; then mv -f "$kb/ckb.json.candidate" "$kb/ckb.json.rejected"; else mv -f "$kb/ckb.json.candidate" "$kb/ckb.json"; rm -f "$kb/ckb.json.rejected"; fi
 art="$kb/ckb.json"; [ "$status" = invalid ] && art="$kb/ckb.json.rejected"
+phase validate
 
 # Docs pipeline (only when an artifact was accepted): front-matter + local->final id rewrite, generated reference, lint + parity
 docs_lint='{}'; docmeta_out=""
 if [ "$status" != invalid ]; then
   docmeta_out="$("$ROOT/scripts/docmeta.sh" "$kb" "$kb/ckb.json" --idmap "$tmpd/idmap.json" 2>&1)" || true
+  phase docmeta
   rm -f "$kb/90-reference.md"   # legacy name (<= 0.9.3); the generated reference is now 09-reference.md
   "$ROOT/scripts/reference.sh" "$kb/ckb.json" > "$kb/09-reference.md.tmp" 2>/dev/null && mv -f "$kb/09-reference.md.tmp" "$kb/09-reference.md" || rm -f "$kb/09-reference.md.tmp"
+  phase reference
 fi
 
 # Secret redaction (the KB is committed): any secret-looking VALUE from repo config found verbatim in the KB -> [REDACTED]
@@ -127,6 +150,7 @@ while IFS= read -r v; do
     [ -f "$f" ] && grep -qF -- "$v" "$f" && { V="$v" perl -0pi -e 's/\Q$ENV{V}\E/[REDACTED]/g' "$f"; redacted=$((redacted+1)); }
   done
 done < "$tmpd/secrets"
+phase redact
 
 if [ "$status" != invalid ]; then
   docs_lint="$("$ROOT/scripts/lint-docs.sh" "$kb" --parity "$kb/ckb.json" 2>/dev/null)"; lrc=$?
@@ -134,6 +158,7 @@ if [ "$status" != invalid ]; then
   [ $lrc -ne 0 ] && [ "$status" != invalid ] && status=incomplete
 fi
 [ -n "$cov_uncited_manifests" ] && [ "$status" != invalid ] && status=incomplete   # dependency map must be complete
+phase lint
 
 outputs="$(cd "$kb" && for f in $DOCS 09-reference.md ckb.json; do
   if [ -f "$f" ]; then printf '%s\t%s\t%s\n' "$f" "$(shasum -a 256 "$f" | cut -d' ' -f1)" "$(wc -c < "$f" | tr -d ' ')"; else printf '%s\tMISSING\t0\n' "$f"; fi; done)"
@@ -141,10 +166,14 @@ missing="$(printf '%s\n' "$outputs" | awk -F'\t' '$2=="MISSING"{print $1}')"
 [ -n "$missing" ] && [ "$status" != invalid ] && status=incomplete
 
 job_id="$(printf '%s|%s|%s' "$url" "$sha" "$now" | shasum -a 256 | cut -c1-16)"
+phase_json="$(printf '%s' "$PHASES" | tr ' ' '\n' | jq -Rn '[inputs | select(length > 0) | split("=") | {key: .[0], value: ((.[1] | tonumber) / 1000)}] | from_entries')"
+perf_json="$(jq -nc --argjson ph "$phase_json" --arg att "$attempt" --arg sc "$n_scouts" --arg wr "$n_writers" --arg re "$n_retries" --arg src "$inv_source" --argjson tot "$(( $(now_ms) - PH_START ))" '
+  def n: if test("^[0-9]+$") then tonumber else null end;
+  {phase_s: $ph, finalize_s: ($tot / 1000), finalize_attempt: ($att | n), inventory_source: $src, fanout: {scouts: ($sc | n), writers: ($wr | n), retries: ($re | n)}}')"
 jq -n --arg id "$job_id" --arg mode "$mode" --arg started "${started:-$now}" --arg finished "$now" --arg status "$status" \
   --argjson repo "$repo_obj" --argjson generator "$gen_obj" --argjson dirty "$dirty" \
   --arg structural "$structural" --arg semantic "$semantic" --arg vout "$vout" --arg outputs "$outputs" \
-  --argjson norm "$out" --slurpfile art "$art" --argjson lint "$docs_lint" --arg redacted "$redacted" --arg uncited "$cov_uncited_manifests" --slurpfile prev "$prev_manifest" '
+  --argjson norm "$out" --slurpfile art "$art" --argjson lint "$docs_lint" --arg redacted "$redacted" --arg uncited "$cov_uncited_manifests" --slurpfile prev "$prev_manifest" --argjson perf "$perf_json" '
   {ckb_version: ($art[0].ckb_version // "0.2"),
    job: {id: $id, mode: $mode, started_at: $started, finished_at: $finished, generator: $generator},
    status: $status,
@@ -170,8 +199,9 @@ jq -n --arg id "$job_id" --arg mode "$mode" --arg started "${started:-$now}" --a
         improve_candidates: [ ($sig | keys[]) as $k | select(($pr[$k].runs // 0) >= 1)
                               | select($k | test("unrecognised|without a known ecosystem|not allowed by the spec|generated/vendored"))
                               | "recurring across runs: \($k) — consider a normalizer alias/rule (open an issue upstream)" ]}),
+   perf: $perf,
    token_usage: null,
-   token_usage_note: "Not observable from inside the session. Headless runs: read usage from `claude -p --output-format json`."}' > "$kb/manifest.json.tmp" \
+   token_usage_note: "Not observable from inside finalize. Filled in afterwards by scripts/usage.sh: exact for headless runs (`claude -p --output-format json`), and from the session transcript (main thread + sub-agents) for interactive runs; null when neither was available."}' > "$kb/manifest.json.tmp" \
   && mv -f "$kb/manifest.json.tmp" "$kb/manifest.json" || die 1 "manifest generation failed (jq error above)"
 
 # Committed-KB hygiene: collapse generated files in PR diffs; deterministic human index (no timestamps).
@@ -207,7 +237,7 @@ if [ "${CKB_METRICS:-on}" != off ]; then
     t1="$(date -u +%s)"; dur=$(( t0 > 0 ? t1 - t0 : -1 ))
     jq -c -n --arg ver "$gen_ver" --arg mode "$mode" --arg status "$status" --arg rid "$rid" --argjson dur "$dur" \
        --arg os "$(uname -s | tr 'A-Z' 'a-z')" --arg jqv "$(jq --version 2>/dev/null)" --arg uv "$(command -v uvx >/dev/null && echo yes || echo no)" \
-       --arg audit "$audit" --arg day "$(date -u +%Y-%m-%d)" --slurpfile m "$kb/manifest.json" '
+       --arg audit "$audit" --arg day "$(date -u +%Y-%m-%d)" --arg job "$job_id" --arg fin "$now" --slurpfile m "$kb/manifest.json" '
       ($m[0]) as $mf
       | def bucket(n): if n < 100 then "<100" elif n < 1000 then "100-999" elif n < 10000 then "1k-9.9k" else "10k+" end;
       def wkind: # fixed vocabulary: free text from warnings never leaves the machine
@@ -238,12 +268,17 @@ if [ "${CKB_METRICS:-on}" != off ]; then
                     rules_failed: ([$mf.validation.messages[]? | (capture("(?<r>R[0-9]+)") | .r)?] | unique)},
        docs_violations: (($mf.validation.docs // {}) | map_values(length)),
        warnings: ([$mf.warnings[]? | wkind] | group_by(.) | map({key: .[0], value: length}) | from_entries),
-       audit: (if ($audit | test("^[0-9]+/[0-9]+$")) then ($audit | split("/") | {supported: (.[0] | tonumber), total: (.[1] | tonumber)}) else null end)}' \
+       audit: (if ($audit | test("^[0-9]+/[0-9]+$")) then ($audit | split("/") | {supported: (.[0] | tonumber), total: (.[1] | tonumber)}) else null end),
+       # LOCAL-ONLY fields (stripped from the upstream report below): job id, timing, fan-out, token usage. No paths: the record stays anonymous
+       job_id: $job, finished_at: $fin, phase_s: ($mf.perf.phase_s), finalize_s: ($mf.perf.finalize_s),
+       finalize_attempts: ($mf.perf.finalize_attempt), fanout: ($mf.perf.fanout), inventory_source: ($mf.perf.inventory_source),
+       token_usage: null, cost_usd: null, usage_scope: null}' \
        >> "$sdir/runs.jsonl" 2>"$tmpd/metrics.err" || echo "  note: run metrics not recorded ($(head -c 200 "$tmpd/metrics.err"))" >&2
     # anonymous report to the maintainer (on by default; DO_NOT_TRACK / CKB_TELEMETRY=off / `telemetry off` disable it)
-    rec_f="$(mktemp)"; tail -1 "$sdir/runs.jsonl" > "$rec_f" 2>/dev/null
+    # upstream gets an explicit ALLOWLIST of the original schema-1 fields: the local-only fields above (job id, timing, fan-out, tokens, cost) never leave the machine
+    rec_f="$(mktemp)"; tail -1 "$sdir/runs.jsonl" | jq -c '{schema,day,plugin_version,ckb_version,mode,status,repo,duration_s,os,jq,uv,size,coverage,entities,confidence,validation,docs_violations,warnings,audit}' > "$rec_f" 2>/dev/null
     telemetry_notice="$("$ROOT/scripts/telemetry.sh" notice 2>/dev/null)"
-    "$ROOT/scripts/telemetry.sh" send "$rec_f" 2>/dev/null || true
+    [ -s "$rec_f" ] && { "$ROOT/scripts/telemetry.sh" send "$rec_f" 2>/dev/null || true; }
     [ "${CKB_TELEMETRY_SYNC:-}" = 1 ] && rm -f "$rec_f"
   fi
 fi
@@ -253,7 +288,7 @@ printf '%s\n' "$vout"
 [ "$docs_lint" != '{}' ] && printf '%s' "$docs_lint" | jq -r 'to_entries[] | select((.value | type) == "array" and (.value | length) > 0) | "  docs: \(.key): \(.value | join("; "))"' 2>/dev/null | head -40
 [ -n "$cov_uncited_manifests" ] && printf '  coverage: manifest not cited: %s\n' $cov_uncited_manifests | head -20
 if [ "$status" = complete ]; then rm -f "$draft"; rm -rf "$kb/ckb.draft.d"; fi
-[ "$status" = complete ] && [ "$mode" = local ] && printf 'COMMIT_HINT=git add ckb && git commit -m "docs(ckb): knowledge base for %s"\n' "$(printf '%s' "$sha" | cut -c1-7)"
+[ "$status" = complete ] && [ "$mode" = local ] && printf 'COMMIT_HINT=git add .ckb && git commit -m "docs(ckb): knowledge base for %s"\n' "$(printf '%s' "$sha" | cut -c1-7)"
 [ -n "${telemetry_notice:-}" ] && printf '%s\n' "$telemetry_notice"
 printf 'STATUS=%s KB_DIR=%s JOB_ID=%s WARNINGS=%s%s\n' "$status" "$kb" "$job_id" "$(jq '.warnings | length' "$kb/manifest.json")" "${missing:+ MISSING=$(echo $missing | tr ' ' ',')}"
 [ "$status" = complete ]
