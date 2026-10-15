@@ -31,4 +31,12 @@ for VER in "${vers[@]}"; do
   fi
   rm -rf "$tmp"
 done
+# Apache-2.0 (4a/4d): redistributed spec files travel with the licence and notice
+for f in LICENSE NOTICE; do
+  git -C "$SRC" show "HEAD:$f" > "$ROOT/spec/.$f.tmp" 2>/dev/null || { rm -f "$ROOT/spec/.$f.tmp"; continue; }
+  if [ "$check" = 1 ]; then
+    if diff -q "$ROOT/spec/.$f.tmp" "$ROOT/spec/$f" >/dev/null 2>&1; then echo "IN SYNC spec/$f"; else echo "DRIFT: spec/$f differs from codebase-kb-spec@${sha:0:7}; run tools/sync-spec.sh" >&2; rc=1; fi
+    rm -f "$ROOT/spec/.$f.tmp"
+  else mv -f "$ROOT/spec/.$f.tmp" "$ROOT/spec/$f"; echo "vendored $f -> spec/$f"; fi
+done
 exit $rc
