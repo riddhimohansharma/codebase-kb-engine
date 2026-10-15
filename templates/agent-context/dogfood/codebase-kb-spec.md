@@ -4,9 +4,9 @@ The normative CKB specification: JSON Schema, executable ID derivation, semantic
 
 ## Non-negotiables
 - 0.x breaks freely (`VERSIONING.md`). Do not add compatibility shims or deprecation windows; make the change and record it in `CHANGELOG.md`.
-- A schema change is never a one-file change. It needs a rejecting fixture here, then fresh vendored copies in `codebase-kb-engine/spec/` (via `tools/sync-spec.sh`) and `consumer-repo/src/codebase_kb_graph/spec/`.
+- A schema change is never a one-file change. It needs a rejecting fixture here, then fresh vendored copies in `spec/` (via `tools/sync-spec.sh`) and in every consumer's vendored spec.
 - `schema/v0.1/` serves old artifacts. Touch it only for a deliberate repo-wide break.
-- Contributions are not accepted (`CONTRIBUTING.md`) and the licence is CC BY-ND 4.0. Do not publish modified copies of the spec text.
+- Contributions are not accepted (`CONTRIBUTING.md`) and the licence is Apache-2.0. A modified spec must not be called CKB (`TRADEMARKS.md`).
 - Vendor data belongs in `x-` fields. Reach for `x-` before a new required field.
 
 ## Shape
@@ -20,7 +20,7 @@ The normative CKB specification: JSON Schema, executable ID derivation, semantic
 ## Changing X obligates Y
 - A constraint in `ckb.schema.json`: add a rejecting fixture under `tests/v0.2/invalid/`.
 - A rule `RN` in `semantic.jq`: add `tests/v0.2/invalid-semantic/rN-<slug>.json`. The suite requires it to be rejected by `RN` and by no other rule.
-- `derive.jq`: update `derive.py` in `consumer-repo`; its `tests/test_derive.py` asserts byte parity.
+- `derive.jq` is the normative ID derivation; every consumer port must match its output exactly.
 - The canonical KB directory (`.ckb/`) appears in lock `artifact_path`, in R7 and in the freshness rule. Change all three together.
 
 ## Traps

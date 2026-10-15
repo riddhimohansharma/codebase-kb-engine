@@ -1,7 +1,6 @@
 # Changelog
 
 ## [Unreleased]
-- Licences: the vendored spec is now Apache-2.0 (was CC BY-ND 4.0) and `templates/agent-context/` is MIT-0; the plugin stays PolyForm Shield 1.0.0. Re-vendored the spec at the `.ckb/` rename.
 - Added CODE_OF_CONDUCT.md and GitHub issue templates (bug, expressiveness gap); security reports are routed to the private channel.
 - Generated reference is now `08-reference.md`, so the `.ckb/` numbering is contiguous 00–08 (was `09-reference.md`, leaving 08 empty). Old `09-`/`90-reference.md` files are removed on regeneration and tolerated by `resolve-kb.sh`.
 - The KB folder is the hidden `.ckb/` (was `ckb/`). A marked `ckb/` migrates automatically, and an unmarked `.ckb/` holding only producer files is adopted; anything else is refused, never overwritten. `COMMIT_HINT` now says `git add .ckb`.
@@ -40,7 +39,6 @@
 - `/kb` loads its skills after the freshness check; plugin scripts run as standalone commands.
 
 ## [0.8.0] — 2026-10-01
-- License changed to PolyForm Shield 1.0.0.
 - Emits CKB v0.2: purl dependencies, artifacts, services, config keys, external services, API specs.
 - Polyglot inventory and a coverage gate; parallel scouts; claim audit; self-improving feedback loop.
 - Eight docs plus a generated reference; doc lint, parity check and front-matter.
