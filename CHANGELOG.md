@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased]
+- Secret redaction runs one `grep` per file instead of one per secret value per file (thousands of process spawns on a large repo), and rescans so a secret nested inside a longer one is also removed.
 - `provides`, `consumes` and registry `depends_on` relations are now derived by the normalizer (nearest-ancestor `module_id`, entity provenance, confidence `inferred`) instead of written by the model: about 7.8k fewer output tokens per run, and relations the model got wrong or dropped are no longer lost. An entity no component contains gets a warning. Scouts no longer write these edges.
 
 ## [0.12.0] — 2026-10-15

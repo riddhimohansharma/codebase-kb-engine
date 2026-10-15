@@ -204,6 +204,10 @@ printf 'DB_PASSWORD=Sup3rS3cretValue_9xQ\n' > "$GOLD/.env"
 mkgold; echo "pw is Sup3rS3cretValue_9xQ here [?]" >> "$KB/05-operations.md"; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1
 ok "secret value from .env redacted in KB"            '! grep -rqF Sup3rS3cretValue_9xQ "$KB" && grep -q "\[REDACTED\]" "$KB/05-operations.md"'
 ok "redaction recorded; manifest hash matches file"   'jq -e "[.warnings[] | select(startswith(\"redacted\"))] | length == 1" "$M" >/dev/null && [ "$(jq -r ".outputs[] | select(.file==\"05-operations.md\") | .sha256" "$M")" = "$(shasum -a 256 "$KB/05-operations.md" | cut -d" " -f1)" ]'
+printf 'A_PASSWORD=ShortSecretValue123\nB_TOKEN=ShortSecretValue123Plus\n' > "$GOLD/.env"
+mkgold; { echo "long ShortSecretValue123Plus here [?]"; echo "short ShortSecretValue123 there [?]"; } >> "$KB/05-operations.md"; echo "also ShortSecretValue123Plus" >> "$KB/06-security-and-data.md"; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1
+ok "redaction: every secret in every file is replaced, including a value nested in a longer one" '! grep -rqF ShortSecretValue123 "$KB" && [ "$(grep -o "\[REDACTED\]" "$KB/05-operations.md" | wc -l | tr -d " ")" -ge 2 ] && grep -q "\[REDACTED\]" "$KB/06-security-and-data.md"'
+ok "redaction: values are never printed"                       '! grep -q ShortSecretValue123 "$T/out"'
 rm -f "$GOLD/.env"
 mkgold; rm "$KB/07-decisions.md"; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1; rc=$?
 ok "missing doc -> status=incomplete"                 '[ $rc -ne 0 ] && [ "$(jq -r .status "$M")" = incomplete ]'

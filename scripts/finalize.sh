@@ -143,13 +143,19 @@ if [ "$status" != invalid ]; then
 fi
 
 # Secret redaction (the KB is committed): any secret-looking VALUE from repo config found verbatim in the KB -> [REDACTED]
-redact_values > "$tmpd/secrets"
-while IFS= read -r v; do
-  [ "${#v}" -ge 12 ] || continue
+redact_values | awk 'length($0) >= 12' > "$tmpd/secrets"
+# single pass per file: one grep finds which secret values occur, perl rewrites only those (was: one grep per value per file)
+if [ -s "$tmpd/secrets" ]; then
   for f in "$kb"/*.md "$kb"/ckb.json; do
-    [ -f "$f" ] && grep -qF -- "$v" "$f" && { V="$v" perl -0pi -e 's/\Q$ENV{V}\E/[REDACTED]/g' "$f"; redacted=$((redacted+1)); }
+    [ -f "$f" ] || continue
+    pass=0   # a value nested inside a longer one is only seen after the longer one is gone: rescan until clean (bounded)
+    while [ "$pass" -lt 4 ]; do
+      grep -oFh -f "$tmpd/secrets" "$f" 2>/dev/null | sort -u > "$tmpd/present"; [ -s "$tmpd/present" ] || break
+      while IFS= read -r v; do V="$v" perl -0pi -e 's/\Q$ENV{V}\E/[REDACTED]/g' "$f"; redacted=$((redacted+1)); done < "$tmpd/present"
+      pass=$((pass+1))
+    done
   done
-done < "$tmpd/secrets"
+fi
 phase redact
 
 if [ "$status" != invalid ]; then
