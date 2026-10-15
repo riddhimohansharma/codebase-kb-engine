@@ -28,10 +28,10 @@ ok "modifiers: exactly +events, +datastore, +deploy, +polyglot" '[ "$(grep -E "^
 
 # ---- the seeds ----
 # repo-path check: backticked tokens that look like repo paths must exist in one of the project's three repos
-# (seeds legitimately point at siblings, e.g. "update derive.py in consumer-repo"); bare names are found anywhere in them
+# (seeds legitimately point at siblings, e.g. "update derive.jq in codebase-kb-spec"); bare names are found anywhere in them
 check_paths(){ # <seed.md> <repo dir>; prints missing tokens
   local seed="$1" dir="$2" tok r roots found
-  roots="$dir"; for r in codebase-kb-engine codebase-kb-spec consumer-repo; do [ -d "$dir/../$r" ] && roots="$roots $dir/../$r"; done
+  roots="$dir"; for r in codebase-kb-engine codebase-kb-spec; do [ -d "$dir/../$r" ] && roots="$roots $dir/../$r"; done
   grep -oE '`[^`]+`' "$seed" | tr -d '`' | sort -u | while IFS= read -r tok; do
     case "$tok" in *" "*|*"<"*|*'$'*|*"="*|*":"*|*"("*|*"{"*|.ckb*|ckb.draft.d*|.inventory.json|"~"*|"/"*) continue ;; esac
     printf '%s' "$tok" | grep -qE '^[A-Za-z0-9_.*/-]+$' || continue
@@ -62,7 +62,6 @@ seed(){ # <name> <repo dir or empty to skip>
 }
 seed codebase-kb-engine "$ROOT"
 seed codebase-kb-spec  "$ROOT/../codebase-kb-spec"
-seed consumer-repo "$ROOT/../consumer-repo"
 
 # the path checker must be able to fail, or the anti-rot guarantee is vacuous
 printf '# x\n\nSee `scripts/does-not-exist.sh` and `scripts/finalize.sh` and `nope.json`.\n' > "${TMPDIR:-/tmp}/ckb-tpl-probe.$$.md"

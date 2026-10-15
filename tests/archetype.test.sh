@@ -61,11 +61,8 @@ ok "archetype.sh writes nothing (read-only)"                             '[ -z "
 # ---- ground truth: the real repos in this workspace ----
 ok "this engine repo is E (its 12 manifests are fixtures; its shell scripts quote regexes)" '[ "$(cls "$ROOT")" = E ] && [ "$(mods "$ROOT")" = "" ]'
 ok "the polyglot fixture is B with +polyglot"                            '[ "$(cls "$ROOT/tests/fixtures/polyglot")" = B ] && "$A" "$ROOT/tests/fixtures/polyglot" | jq -e ".modifiers | index(\"polyglot\") != null" >/dev/null'
-SPEC="$ROOT/../codebase-kb-spec"; GRAPH="$ROOT/../consumer-repo"
+SPEC="$ROOT/../codebase-kb-spec"
 if [ -d "$SPEC/schema" ]; then ok "codebase-kb-spec is E"             '[ "$(cls "$SPEC")" = E ]'; else echo "SKIP codebase-kb-spec not found next to this repo"; fi
-# the graph also reports +events: one docstring in mcp_server.py lists "Kafka, SQS, SNS". Modifiers are candidates that
-# W4 confirms against ckb.json entities, so only the primary and the real datastore signal are asserted.
-if [ -d "$GRAPH/src" ]; then ok "consumer-repo is C with +datastore" '[ "$(cls "$GRAPH")" = C ] && "$A" "$GRAPH" | jq -e ".modifiers | index(\"datastore\") != null" >/dev/null'; else echo "SKIP consumer-repo not found next to this repo"; fi
 
 echo "archetype tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
