@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+
+## [0.11.0] — 2026-10-15
 - Scanner noise: the detection fixtures (12 manifests, six ecosystems) are marked vendored in `.gitattributes` and excluded by `trivy.yaml` and `.snyk`; `SECURITY.md` says what they are.
 - Telemetry stays on by default and is now fully transparent: `docs/TELEMETRY.md` shows the exact payload (checked against the upstream allowlist by a test), the first-run notice is shown at the start of `/kb` before anything is sent, and an organization can turn it off for everyone through Claude Code's managed settings (`CKB_TELEMETRY=off` in `env`).
 - First run seeds `CLAUDE.md` by default: the first `/kb` in a repository creates it from proven lines only (create-only, once, never overwriting; skipped for existing `CLAUDE.md`/`AGENTS.md`, symlinks, gitignored paths, submodules, URL mode, sparse repos). Opt out with `/kb --no-agent-context` or `CKB_AGENT_CONTEXT=off`. Recorded in `manifest.json` as `agent_context`.
