@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased]
+- Generated reference is now `08-reference.md`, so the `.ckb/` numbering is contiguous 00–08 (was `09-reference.md`, leaving 08 empty). Old `09-`/`90-reference.md` files are removed on regeneration and tolerated by `resolve-kb.sh`.
 - The KB folder is the hidden `.ckb/` (was `ckb/`). A marked `ckb/` migrates automatically, and an unmarked `.ckb/` holding only producer files is adopted; anything else is refused, never overwritten. `COMMIT_HINT` now says `git add .ckb`.
 - Inventory: shell scripts (`sh`, `bash`) are now content-sniffed. Areas carry a `tier` (`source`, `test`, `docs`) and content-sniffed entries are marked in `sniffed`. `inventory.sh --out FILE` writes the full inventory and prints a ~2 KB digest; `kbq.sh inventory` gives each scout only its slice. Scouts are packed into at most 7 scopes plus the inventory scout.
 - `/kb <url>` skips regeneration when the repository's committed `.ckb/` is already fresh: `freshness.sh --shallow` compares trees against the analysed commit, fetched with the new `clone.sh fetch-commit`.

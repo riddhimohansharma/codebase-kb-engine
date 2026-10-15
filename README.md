@@ -18,7 +18,7 @@ Each run produces, in `.ckb/`:
 | `05-operations.md` | ops, on-call | Build, run locally, test, deploy and environments, observability, alerts and failure modes, rollback |
 | `06-security-and-data.md` | security | Trust boundaries, AuthN/AuthZ, data classification, secrets inventory (names only), findings |
 | `07-decisions.md` | architects | Evidence-based decision log (ADR-lite) |
-| `09-reference.md` | everyone, tools | Generated tables from `ckb.json`: interfaces, dependencies, artifacts, services, datastores, config, external services, API specs, relations |
+| `08-reference.md` | everyone, tools | Generated tables from `ckb.json`: interfaces, dependencies, artifacts, services, datastores, config, external services, API specs, relations |
 | **`ckb.json`** | machines | The same facts in the open **CKB v0.2** format ([spec](https://github.com/riddhimohansharma/codebase-kb-spec)), built for cross-repo graphs |
 | `manifest.json` | machines | Job identity, status, coverage, output checksums, validation (schema, rules, doc lint), confidence roll-up |
 | `README.md`, `.gitattributes`, `.gitignore` | GitHub | Browsable index; generated-file marking; keeps transient files out of commits |

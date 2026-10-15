@@ -55,7 +55,7 @@ Give each scout only: the absolute root, `KB_DIR`, the `kbq.sh` path, its **scop
 **9. Finalize.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/finalize.sh" "<REPO_ROOT>" "<KB_DIR>" --started-at "<start>" --audit "<supported>/<audited>" --inventory "<KB_DIR>/ckb.draft.d/.inventory.json" --attempt <1 or 2> --scouts <scouts launched> --writers <writers launched> --retries <re-dispatches>` (the step 8 audit counts; the inventory file is reused instead of walking the repo again; the counts are recorded locally for benchmarking). In URL mode, add `--mode url --url "<REPO_URL>" --branch "<BRANCH>"`. It does the following:
 - merges `ckb.draft.d/`, inventories the repo and computes coverage;
 - derives IDs and normalizes everything;
-- lints the docs, checks that the docs and the JSON agree, injects doc front-matter, rewrites local ids to final ids in the docs, and generates `09-reference.md`;
+- lints the docs, checks that the docs and the JSON agree, injects doc front-matter, rewrites local ids to final ids in the docs, and generates `08-reference.md`;
 - redacts secrets, validates, and writes `ckb.json`, `manifest.json`, `README.md`, `.gitattributes` and `.gitignore`.
 
 If `STATUS` is not `complete`, run `kbq.sh status <KB_DIR>` and read the reported violations:

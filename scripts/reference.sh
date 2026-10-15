@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # reference.sh — deterministic reference tables generated from ckb.json (never model-written).
-# Usage: reference.sh <ckb.json> > <kb_dir>/09-reference.md
+# Usage: reference.sh <ckb.json> > <kb_dir>/08-reference.md
 # Sections: Interfaces, Dependencies, Artifacts, Services, Datastores, Config keys, External services, API specs, Relations.
 # Rows sorted by id (relations by from,kind,to); absent/empty collections render "_None recorded._".
 # Config keys carry names and is_secret only; ckb.json never holds values. Front-matter: ckb_doc "reference",
