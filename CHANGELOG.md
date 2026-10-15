@@ -1,6 +1,10 @@
 # Changelog
 
 ## [Unreleased]
+
+## [0.10.0] — 2026-10-15
+- `/kb-agent-context` proposes a `CLAUDE.md` / `AGENTS.md` for any repo in seconds, with no model spend: the archetype's template filled only with lines the manifests, lockfiles and buckets prove, `TODO(human)` for the rest. It writes only `.ckb/agent-context.proposed.md` (git-ignored) and never touches `CLAUDE.md` or `AGENTS.md`.
+- `scripts/lint-agent-context.sh` checks a finished file: six sections in order, at most 400 words, no TODO, no skeleton tags, no dates, no secrets.
 - Added CODE_OF_CONDUCT.md and GitHub issue templates (bug, expressiveness gap); security reports are routed to the private channel.
 - Generated reference is now `08-reference.md`, so the `.ckb/` numbering is contiguous 00–08 (was `09-reference.md`, leaving 08 empty). Old `09-`/`90-reference.md` files are removed on regeneration and tolerated by `resolve-kb.sh`.
 - The KB folder is the hidden `.ckb/` (was `ckb/`). A marked `ckb/` migrates automatically, and an unmarked `.ckb/` holding only producer files is adopted; anything else is refused, never overwritten. `COMMIT_HINT` now says `git add .ckb`.

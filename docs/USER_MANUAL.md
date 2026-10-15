@@ -107,6 +107,12 @@ Open `.ckb/README.md` on GitHub to browse the KB. Run `/kb` again at any time: i
 
 See [§8](#8-analysing-a-remote-repo-url-mode).
 
+### `/kb-agent-context [repo]`: propose a CLAUDE.md / AGENTS.md
+
+Writes `<repo>/.ckb/agent-context.proposed.md` and nothing else. The repo is classified from its inventory (A service, B monorepo, C library or CLI, D infrastructure, E contract and content, plus events, datastore, deploy and polyglot modifiers). The proposal contains only lines a manifest, lockfile or bucket proves, and a `TODO(human)` line wherever a person must decide. No model is used and the output is byte-identical for the same repo state.
+
+The command never creates, edits or overwrites `CLAUDE.md` or `AGENTS.md`, and the read-only gate blocks the model from doing so too. If a `CLAUDE.md` exists, the next step it prints is `diff CLAUDE.md .ckb/agent-context.proposed.md`. To adopt the proposal: fill or delete every TODO line, delete the leading comment, run `scripts/lint-agent-context.sh <file>` (six sections in order, at most 400 words, no dates, no secrets, no TODO), then copy it yourself. The proposal is git-ignored inside `.ckb/` so it is never committed by accident.
+
 ### `/kb-validate [path/to/ckb.json]`: check an artifact
 
 Defaults to `<repo-root>/.ckb/ckb.json`. It reports one row per check (JSON Schema, then rules R1–R7) plus freshness. It never reports a skipped check as a pass.
@@ -258,7 +264,7 @@ The freshness check is what keeps this cheap at scale: unchanged repos cost one 
 ## 10. Safety model
 
 **When the gate is armed:**
-- Typing `/kb` or `/kb-validate` (also namespaced as `/codebase-kb-engine:…`) arms it. Other plugins' commands, and `/map`, `/hunt` and `/plan`, never do.
+- Typing `/kb`, `/kb-validate` or `/kb-agent-context` (also namespaced as `/codebase-kb-engine:…`) arms it. Other plugins' commands, and `/map`, `/hunt` and `/plan`, never do.
 - The first run of any plugin script arms it.
 - The local wrappers arm it for the whole session by setting `CKB_ENFORCE=always`.
 

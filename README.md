@@ -46,6 +46,7 @@ From a terminal: `claude plugin marketplace add riddhimohansharma/codebase-kb-en
 /kb https://github.com/org/repo       # analyse a remote repo (default branch detected, not assumed)
 /kb git@github.com:org/repo.git dev   # a specific branch
 /kb-validate                          # check the generated ckb.json against the spec
+/kb-agent-context                     # propose a CLAUDE.md / AGENTS.md for this repo (seconds, no model spend)
 /kb-unlock                            # leave read-only mode for this session
 ```
 
@@ -72,11 +73,18 @@ git add ckb && git commit -m "docs(ckb): knowledge base for <sha>"    # you (or 
 - **URL mode** (`/kb <url>`) analyses a repo you're not working in. Output goes to `$KB_DIR`, or `<name>-ckb/` next to your current work tree, using the same layout. It is never committed, because the clone is deleted.
 - An existing, non-empty `.ckb/` without the `.ckb-output` marker is never overwritten, and a symlinked `ckb` is refused.
 
+
+## Agent context: a CLAUDE.md proposal in seconds
+
+`/kb-agent-context` classifies the repo (service, monorepo, library, infrastructure or contract) and writes `.ckb/agent-context.proposed.md`: the template for that archetype with only the lines your manifests, lockfiles, routes, migrations, CI and IaC prove (test commands, "this dependency change also updates that lockfile", "never edit a committed migration"). What no script can know is left as `TODO(human)`. It uses no model, takes seconds and is deterministic.
+
+It **never writes `CLAUDE.md` or `AGENTS.md`** and never overwrites an existing one. You review the proposal, fill the TODO lines, check it with `scripts/lint-agent-context.sh` (six sections, at most 400 words, no TODO, no secrets) and copy it yourself: `cp .ckb/agent-context.proposed.md CLAUDE.md`. Templates and finished examples are in [templates/agent-context/](templates/agent-context/) (MIT-0, copy freely).
+
 ## Safety model
 
 "Read-only" is enforced by a hook, not merely requested in a prompt.
 
-**Scope.** The gate arms for a session when you run `/kb` or `/kb-validate` (also as `/codebase-kb-engine:kb…`), or when any of the plugin's scripts runs. Commands from other plugins with similar names, such as another `/plan`, never arm it. Arming only ever adds restrictions, so the model may trigger it but can't undo it. Only a human-typed `/kb-unlock`, the end of the session, or 24 hours after arming disarms it. With `CKB_ENFORCE=always`, which the wrappers set, it cannot be disarmed until the session ends. **Sessions that never use the plugin are not affected at all.**
+**Scope.** The gate arms for a session when you run `/kb`, `/kb-validate` or `/kb-agent-context` (also as `/codebase-kb-engine:kb…`), or when any of the plugin's scripts runs. Commands from other plugins with similar names, such as another `/plan`, never arm it. Arming only ever adds restrictions, so the model may trigger it but can't undo it. Only a human-typed `/kb-unlock`, the end of the session, or 24 hours after arming disarms it. With `CKB_ENFORCE=always`, which the wrappers set, it cannot be disarmed until the session ends. **Sessions that never use the plugin are not affected at all.**
 
 **While armed, the gate fails closed:**
 
