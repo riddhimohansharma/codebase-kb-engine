@@ -1,0 +1,5 @@
+# Snyk: the detection fixtures are test inputs, not dependencies.
+version: v1.25.0
+exclude:
+  global:
+    - tests/fixtures/**

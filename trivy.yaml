@@ -1,0 +1,4 @@
+# Skip the deliberately minimal detection fixtures (12 manifests across six ecosystems); nothing is installed or run from them.
+scan:
+  skip-dirs:
+    - tests/fixtures

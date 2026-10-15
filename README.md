@@ -38,6 +38,10 @@ From a terminal: `claude plugin marketplace add riddhimohansharma/codebase-kb-en
 
 **Requirements:** Claude Code, `git`, `jq` 1.6 or later, and [`uv`](https://docs.astral.sh/uv/) (optional, strongly recommended). Without `uv`, the JSON Schema check in `/kb-validate` is reported as **SKIPPED**, never as passed.
 
+## Value in seconds
+
+Run `/kb-agent-context` for a `CLAUDE.md` proposal in seconds with no model spend. The first full `/kb` in a repository also seeds a `CLAUDE.md` for you automatically (create-only; opt out with `--no-agent-context`) before the long analysis starts, so you get something useful immediately and the knowledge base follows.
+
 ## Use
 
 ```text

@@ -8,6 +8,9 @@ Codebase KB Engine analyses repositories **read-only**. While a session is armed
 - Hooks run with your user privileges, as all Claude Code plugin hooks do. Read `hooks/` before installing.
 - Deleting a clone removes it with `rm -rf`. On SSDs, that doesn't guarantee physical erasure.
 
+## Test fixtures
+`tests/fixtures/` holds deliberately minimal manifests (12 across six ecosystems) and sources used only to test detection. Nothing is installed or executed from them and they are not dependencies of the plugin. Dependency scanners and GitHub's dependency graph may list them: `.gitattributes` marks them vendored, and `trivy.yaml` and `.snyk` exclude them for those tools. Exclude `tests/fixtures/**` in any other scanner you run.
+
 ## Anonymous usage reports
 The plugin sends one anonymous report per run (on by default; see README). Reports contain counts and category IDs only, never names, paths, code or values. Disable with `codebase-kb-engine telemetry off`, `CKB_TELEMETRY=off` or `DO_NOT_TRACK=1`, or organization-wide with `CKB_TELEMETRY=off` in Claude Code's managed settings `env`. The exact payload is in [docs/TELEMETRY.md](docs/TELEMETRY.md).
 

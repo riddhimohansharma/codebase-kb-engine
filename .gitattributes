@@ -1,0 +1,3 @@
+# Test fixtures are inputs for detection tests, not dependencies of the plugin or code to analyse
+tests/fixtures/** linguist-vendored
+tests/fixtures/** linguist-generated

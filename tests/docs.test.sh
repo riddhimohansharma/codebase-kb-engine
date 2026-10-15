@@ -214,4 +214,8 @@ ok "reference works with all collections absent"   '[ $rc -eq 0 ] && [ "$(grep -
 ok "reference: invalid artifact -> exit 2"         'ref "$T/bad.json" >/dev/null 2>&1; [ $? -eq 2 ]'
 ok "reference: no args -> exit 2"                  'ref >/dev/null 2>&1; [ $? -eq 2 ]'
 
+ok "scanner noise: fixtures are marked vendored and excluded for trivy and snyk" 'grep -q "tests/fixtures/\*\* linguist-vendored" "$ROOT/.gitattributes" && grep -q "tests/fixtures" "$ROOT/trivy.yaml" && grep -q "tests/fixtures" "$ROOT/.snyk"'
+ok "scanner noise: SECURITY.md explains the fixtures"          'grep -q "^## Test fixtures" "$ROOT/SECURITY.md"'
+ok "first value: README leads with the seconds-long path"       'grep -q "^## Value in seconds" "$ROOT/README.md" && [ "$(grep -n "^## Value in seconds" "$ROOT/README.md" | cut -d: -f1)" -lt "$(grep -n "^## Use" "$ROOT/README.md" | head -1 | cut -d: -f1)" ]'
+
 pass=$(grep -c P "$T/r"); fail=$(grep -c F "$T/r"); echo "---"; echo "docs tests: $pass passed, $fail failed"; [ "$fail" -eq 0 ]
