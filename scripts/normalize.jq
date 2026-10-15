@@ -330,6 +330,16 @@ def merge_group: (sort_by(.confidence | rank) | .[0]) as $best
       | map(if $c == "workflows" then .steps |= map(if has("entity_id") then (.entity_id | remap) as $m | (if $m then .entity_id = $m else del(.entity_id) end) else . end) else . end)
       | sort_by(.id)) }) | from_entries | with_entries(select(.value | length > 0)) ) as $entities
 | (reduce ($entities.interfaces // [])[] as $i ({}; .[$i.id] = $i.role)) as $role_of
+| def comp_for($path): ([ ($entities.components // [])[] | select(.module_id as $m | $m == "." or $path == $m or ($path | startswith($m + "/"))) ] | sort_by(.module_id | length) | last);
+  # provides/consumes (interface -> its component) and depends_on (dependency -> the component whose directory holds its manifest) are
+  # mechanical: derived here by nearest-ancestor module_id instead of being written by the model. confidence is "inferred" (containment
+  # by path is an inference); provenance is the entity's own. An entity no component contains is reported, never dropped silently.
+  ( [ ($entities.interfaces // [])[] | select(.provenance != [] and (.provenance | length) > 0) | . as $i | (comp_for($i.provenance[0].path)) as $c
+        | select($c != null) | {from: $c.id, to: $i.id, kind: $i.role, confidence: "inferred", provenance: $i.provenance} ]
+  + [ ($entities.dependencies // [])[] | select(.provenance != [] and (.provenance | length) > 0) | . as $d | (comp_for($d.manifest_path)) as $c
+        | select($c != null) | {from: $c.id, to: $d.id, kind: "depends_on", confidence: "inferred", provenance: $d.provenance} ] ) as $derived
+| ( [ ($entities.interfaces // [])[] | select(.provenance != [] and (.provenance | length) > 0) | select(comp_for(.provenance[0].path) == null) | "no component contains interface, so no provides/consumes edge was derived: \(.id)" ]
+  + [ ($entities.dependencies // [])[] | select(.provenance != [] and (.provenance | length) > 0) | select(comp_for(.manifest_path) == null) | "no component contains dependency manifest, so no depends_on edge was derived: \(.id)" ] ) as $derive_warnings
 | def rel_ok: . as $r | (ckb_relation_rules[$r.kind]) as $rule | ($r.from | ckb_prefix) as $fp | ($r.to | ckb_prefix) as $tp
     | ($rule != null) and (($rule.from | index([$fp])) != null) and (($rule.to | index([$tp])) != null);
   ( [ ($draft.relations // [])[] | select(type == "object" and .from and .to and .kind)
@@ -337,7 +347,7 @@ def merge_group: (sort_by(.confidence | rank) | .[0]) as $best
       | (.kind | coerce(E_REL; A_REL; "depends_on")) as $kind | claim_fields as $cf
       | (.from | tostring | remap_all[]) as $f | (.to | tostring | remap_all[]) as $t
       | {from: $f, to: $t, kind: (if ($kind | IN("provides","consumes")) and $role_of[$t] and $role_of[$t] != $kind then $role_of[$t] else $kind end)} + $cf
-      | select(rel_ok) ]
+      | select(rel_ok) ] + [ $derived[] | select(rel_ok) ]
     | group_by([.from, .to, .kind]) | map(merge_group) | sort_by([.from, .kind, .to]) ) as $relations
 | ([ $entities[][], $relations[] ]) as $claims
 | {confirmed: ([$claims[] | select(.confidence == "confirmed")] | length),
@@ -360,7 +370,7 @@ def merge_group: (sort_by(.confidence | rank) | .[0]) as $best
               + {confidence_summary: $summary, entities: $entities}
               + (if ($relations | length) > 0 then {relations: $relations} else {} end)),
    idmap: (reduce ($locals[] | select(.value | length == 1)) as $l ({}; .[$l.key] = $l.value[0])),
-   warnings: ([ $colls[] as $c | ($draft.entities[$c] // [])[] | select(type == "object") | select(downgraded) | "downgraded to unknown (no verifiable provenance): \($c)/\(.id // .name)" ]
+   warnings: ($derive_warnings + [ $colls[] as $c | ($draft.entities[$c] // [])[] | select(type == "object") | select(downgraded) | "downgraded to unknown (no verifiable provenance): \($c)/\(.id // .name)" ]
               + [ ($draft.relations // [])[] | select(type == "object") | select(downgraded) | "downgraded to unknown (no verifiable provenance): relation \(.from) -> \(.to)" ]
               + [ ($draft.relations // [])[] | select(type != "object" or ((.from and .to and .kind) | not)) | "dropped malformed relation" ]
               + [ ($draft.relations // [])[] | select(type == "object" and .kind and (.kind | enum_ok(E_REL; A_REL) | not)) | "dropped relation with unknown kind '\(.kind)': \(.from) -> \(.to)" ]

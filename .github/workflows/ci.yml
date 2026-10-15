@@ -47,3 +47,4 @@ jobs:
           tests/templates.test.sh
           tests/agent-context.test.sh
           tests/checkpoint.test.sh
+          tests/derive.test.sh

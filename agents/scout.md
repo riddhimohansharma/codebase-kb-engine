@@ -50,4 +50,4 @@ You are a read-only scout for one scope of a repository. Inputs: absolute `root`
    `instance_key` is the env var **name** holding the DSN. Access is `read`, `write` or `readwrite`. Add `reads`/`writes` relations from the component.
 7. **Business rules.** Validation, authorization, limits, state transitions and pricing, with the enforcement site.
 8. **Workflows.** End-to-end flows across your scope, with ordered steps pointing at entity local ids.
-9. **Relations.** Use the allowed table in `ckb-contract`. **Every interface needs a `provides`/`consumes` edge from its component.**
+9. **Relations.** Use the allowed table in `ckb-contract`. Do not write `provides`/`consumes` or registry `depends_on` edges: they are derived by the normalizer from each entity's `module_id`, `provenance` and `manifest_path`, so make those accurate.

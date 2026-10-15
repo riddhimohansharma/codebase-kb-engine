@@ -50,7 +50,7 @@ Every entity and relation also carries `"confidence"` and `"provenance": [{"path
 | interfaces (http) | `role`, `http.method`, `http.normalized_path`, **`http.host`** (consumes), **`service_key`** (provides) | Compose the **full** path, including mount prefixes, class-level mappings and context paths. Use one entity per method. For outbound calls, always give the target as `host`: a service name, a hostname, or the env var name that holds the base URL |
 | interfaces (event) | `event.transport`, `event.topic` | Resolve `${…}` placeholders from config. For RabbitMQ, the topic is `exchange/routing_key` |
 | interfaces (rpc) | `rpc.protocol`, `rpc.service`, `rpc.method` | gRPC: `service` is proto `package.Service`. GraphQL: `service` is `Query`/`Mutation`/`Subscription` and `method` is the field name |
-| dependencies | **`purl`** (versionless), `manifest_path`, `scope` | One entity per declaration (per manifest). Use `source: workspace\|path` for internal monorepo packages, and add a `depends_on` relation component→component. Skip go.mod `// indirect`. Resolve Gradle catalog aliases, sbt `%%` and `${property}` |
+| dependencies | **`purl`** (versionless), `manifest_path`, `scope` | One entity per declaration (per manifest). Use `source: workspace\|path` for internal monorepo packages, and add a `depends_on` relation component→component (dependencies on registry packages get theirs derived). Skip go.mod `// indirect`. Resolve Gradle catalog aliases, sbt `%%` and `${property}` |
 | artifacts | **`purl`** | What this repo **publishes**: its package name from the manifest, container images it builds, charts, binaries. This is how a consumer resolves "repo A depends on X" to "repo B builds X" |
 | services | `service_key` (kebab) | Deployable runtime units: k8s Deployment, Helm release, compose service, Lambda function |
 | datastores | `engine`, `instance_key`, `schema`, `table` | The physical table name follows ORM conventions (see the scout checklist). `instance_key` is the **name of the env var** holding the DSN, never the DSN |
@@ -87,7 +87,7 @@ Every entity and relation also carries `"confidence"` and `"provenance": [{"path
 | `uses_external` | component, interface | external_service |
 | `specified_by` | interface | api_spec |
 
-**Every interface needs at least one `provides` or `consumes` edge from its component.** Every dependency needs a `depends_on` edge from the component whose manifest declares it.
+`provides`/`consumes` (interface → its component) and `depends_on` (dependency → the component whose directory holds its manifest) are derived by the normalizer from `module_id`, `provenance` and `manifest_path`: do not write them. Write only the other edges (`imports`, `contains`, `calls`, `reads`/`writes`, `publishes`/`subscribes`, `enforces`, `builds`, `deploys_as`, `exposes`, `configured_by`, `uses_external`, `specified_by`, and `depends_on` between two components).
 
 ## Confidence (per claim)
 - `confirmed`: the cited line states it directly.

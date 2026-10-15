@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased]
+- `provides`, `consumes` and registry `depends_on` relations are now derived by the normalizer (nearest-ancestor `module_id`, entity provenance, confidence `inferred`) instead of written by the model: about 7.8k fewer output tokens per run, and relations the model got wrong or dropped are no longer lost. An entity no component contains gets a warning. Scouts no longer write these edges.
 
 ## [0.12.0] — 2026-10-15
 - Checkpoints: an interrupted `/kb` resumes instead of restarting. `scripts/checkpoint.sh` derives progress from disk (valid fragments, written docs, the saved inventory) and refuses a resume when the commit, uncommitted source changes, plugin version or focus differ. `/kb --fresh` ignores a checkpoint.
