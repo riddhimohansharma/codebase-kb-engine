@@ -2,7 +2,7 @@
 
 Seed content for the file every coding agent reads before it touches a repo: `CLAUDE.md` for Claude Code, `AGENTS.md` for other tools. One body serves both; only the filename differs.
 
-**Status.** `/kb-agent-context` proposes this file for any repo from its manifests, lockfiles and inventory (no model spend) and writes it only to `.ckb/agent-context.proposed.md`. It never writes `CLAUDE.md` or `AGENTS.md` itself and never overwrites an existing one: you review the proposal, fill the `TODO(human)` lines and copy it. These templates and seeds define the shape it targets.
+**Status.** `/kb-agent-context` proposes this file for any repo from its manifests, lockfiles and inventory (no model spend) and writes it only to `.ckb/agent-context.proposed.md`. It never writes `CLAUDE.md` or `AGENTS.md` itself and never overwrites an existing one: you review the proposal, fill the `TODO(human)` lines and copy it. These templates and seeds define the shape it targets. Separately, the first `/kb` in a repository seeds `CLAUDE.md` once from the proven lines, create-only (see the main README).
 
 ## The one rule
 

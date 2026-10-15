@@ -208,6 +208,14 @@ ok "a leftover agent-context proposal does not break finalize"   '[ $rc -eq 0 ] 
 ok "the proposal is kept out of commits by the KB .gitignore"    'grep -qxF agent-context.proposed.md "$KB/.gitignore"'
 ok "the proposal is not listed as a KB output"                   '! jq -e ".outputs[] | select(.file == \"agent-context.proposed.md\")" "$M" >/dev/null'
 rm -f "$KB/agent-context.proposed.md"
+mkgold; printf '{"seeded":true,"path":"CLAUDE.md","sha256":"%064d","bytes":9,"archetype":"C"}\n' 0 > "$KB/.agent-context-seeded"; printf 'seed\n' > "$GOLD/CLAUDE.md"
+"$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1; rc=$?
+ok "a first-run seed is recorded in manifest.agent_context (audit)" '[ $rc -eq 0 ] && jq -e ".agent_context.seeded == true and .agent_context.path == \"CLAUDE.md\" and .agent_context.archetype == \"C\"" "$M" >/dev/null'
+ok "the commit hint includes CLAUDE.md when it was seeded"       'grep -q "^COMMIT_HINT=git add .ckb CLAUDE.md && " "$T/out"'
+ok "a seeded CLAUDE.md does not mark the worktree dirty"         '[ "$(jq -r .repo.dirty_worktree "$M")" = false ]'
+rm -f "$KB/.agent-context-seeded" "$GOLD/CLAUDE.md"
+mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1
+ok "without a seed the manifest has no agent_context and the hint is unchanged" '! jq -e "has(\"agent_context\")" "$M" >/dev/null && grep -q "^COMMIT_HINT=git add .ckb && " "$T/out"'
 rm -f "$KB/.ckb-output"; mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1; rc=$?
 ok "refuses dir without .ckb-output marker"           '[ $rc -eq 2 ]'
 

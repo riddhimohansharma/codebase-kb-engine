@@ -1,7 +1,7 @@
 # Security Policy
 
 ## What this plugin promises
-Codebase KB Engine analyses repositories **read-only**. While a session is armed (see the README's *Safety model*), a `PreToolUse` hook blocks every write outside a `.ckb-output` directory, every git write or push, and every tool that isn't on a known read-only list. In repo-URL mode, clones are shallow, push-disabled, and deleted when the job ends.
+Codebase KB Engine analyses repositories **read-only**. While a session is armed (see the README's *Safety model*), a `PreToolUse` hook blocks every write outside a `.ckb-output` directory, every git write or push, and every tool that isn't on a known read-only list. The one exception is the first-run seed: a plugin script (never the model) creates `<repo>/CLAUDE.md` once, atomically and create-only, only when nothing exists there (no file, no symlink), the path is not gitignored, the repo is not a submodule, and the repo has not had a `/kb` run before; the model's own `Write`, `Edit` and `cp` of that file stay blocked. Disable it with `/kb --no-agent-context` or `CKB_AGENT_CONTEXT=off`. Create-only is enforced against ordinary operation, not against a local attacker racing the check, and anything in `CLAUDE.md` is read by every agent in the repo, so review it like code. In repo-URL mode, clones are shallow, push-disabled, and deleted when the job ends.
 
 ## Honest limits
 - The gate inspects shell command **text**. It is a strong guardrail, not an OS sandbox. For untrusted code, also enable Claude Code's sandbox mode.

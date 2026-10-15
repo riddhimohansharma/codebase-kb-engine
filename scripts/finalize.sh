@@ -61,7 +61,7 @@ case "$url" in
   *) url="$(printf '%s' "$url" | sed -E 's#^[A-Za-z0-9._-]+@([^:/]+):#https://\1/#; s#^(ssh|git|git\+ssh|https?)://#https://#; s#^https://([^/@]*@)#https://#; s#^https://([^/:]+):[0-9]+/#https://\1/#; s#\.git/?$##; s#/+$##')"
      host="$(printf '%s' "$url" | sed -E 's#^https://([^/]+).*#\1#' | tr 'A-Z' 'a-z')"; url="https://$host/${url#https://*/}" ;;
 esac
-dirty=false; [ -n "$(git -C "$repo" status --porcelain -- . ':(exclude).ckb' ':(exclude,glob)**/.DS_Store' ':(exclude,glob)**/Thumbs.db' ':(exclude,glob)**/desktop.ini' 2>/dev/null | head -1)" ] && dirty=true   # the KB itself never counts
+dirty=false; [ -n "$(git -C "$repo" status --porcelain -- . ':(exclude).ckb' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md' ':(exclude,glob)**/.DS_Store' ':(exclude,glob)**/Thumbs.db' ':(exclude,glob)**/desktop.ini' 2>/dev/null | head -1)" ] && dirty=true   # the KB itself never counts
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 gen_ver="$(jq -r .version "$ROOT/.claude-plugin/plugin.json")"
 repo_obj="$(jq -nc --arg u "$url" --arg b "$branch" --arg s "$sha" --arg t "$now" '{url:$u, branch:$b, commit_sha:$s, generated_at:$t}')"
@@ -223,7 +223,7 @@ jq -r --arg status "$status" '
   "| [ckb.json](ckb.json) | tools | Machine-readable CKB artifact |\n",
   "Claims: \(.confidence_summary.confirmed) confirmed · \(.confidence_summary.inferred) inferred · \(.confidence_summary.unknown) unknown.",
   (if .coverage then "Coverage: " + ([.coverage.buckets | to_entries[] | select(.value.found > 0) | "\(.key) \(.value.cited)/\(.value.found)"] | join(" · ")) + ".\n" else "" end),
-  "**Freshness:** this KB is current while nothing outside `.ckb/` has changed since the source commit (`git diff --quiet \(.repo.commit_sha[0:12]) HEAD -- . \u0027:(exclude).ckb\u0027`). Regenerate with `/kb`."
+  "**Freshness:** this KB is current while nothing outside `.ckb/` has changed since the source commit (`git diff --quiet \(.repo.commit_sha[0:12]) HEAD -- . \u0027:(exclude).ckb\u0027 \u0027:(exclude)CLAUDE.md\u0027 \u0027:(exclude)AGENTS.md\u0027`). Regenerate with `/kb`."
 ' "$kb/ckb.json" > "$kb/README.md" 2>/dev/null || true
 
 # Anonymous local run metrics (performance and quality stats; never paths, names, code, URLs or values).
@@ -287,8 +287,10 @@ printf '%s\n' "$vout"
 [ -n "$docmeta_out" ] && printf '%s\n' "$docmeta_out" | tail -1
 [ "$docs_lint" != '{}' ] && printf '%s' "$docs_lint" | jq -r 'to_entries[] | select((.value | type) == "array" and (.value | length) > 0) | "  docs: \(.key): \(.value | join("; "))"' 2>/dev/null | head -40
 [ -n "$cov_uncited_manifests" ] && printf '  coverage: manifest not cited: %s\n' $cov_uncited_manifests | head -20
+# audit record of the first-run CLAUDE.md seed (written by agent-context.sh --seed)
+[ -f "$kb/.agent-context-seeded" ] && jq --slurpfile a "$kb/.agent-context-seeded" '. + {agent_context: $a[0]}' "$kb/manifest.json" > "$kb/manifest.json.tmp" 2>/dev/null && mv -f "$kb/manifest.json.tmp" "$kb/manifest.json"
 if [ "$status" = complete ]; then rm -f "$draft"; rm -rf "$kb/ckb.draft.d"; fi
-[ "$status" = complete ] && [ "$mode" = local ] && printf 'COMMIT_HINT=git add .ckb && git commit -m "docs(ckb): knowledge base for %s"\n' "$(printf '%s' "$sha" | cut -c1-7)"
+[ "$status" = complete ] && [ "$mode" = local ] && { add=".ckb"; [ -f "$kb/.agent-context-seeded" ] && [ -f "$repo/CLAUDE.md" ] && add=".ckb CLAUDE.md"; printf 'COMMIT_HINT=git add %s && git commit -m "docs(ckb): knowledge base for %s"\n' "$add" "$(printf '%s' "$sha" | cut -c1-7)"; }
 [ -n "${telemetry_notice:-}" ] && printf '%s\n' "$telemetry_notice"
 printf 'STATUS=%s KB_DIR=%s JOB_ID=%s WARNINGS=%s%s\n' "$status" "$kb" "$job_id" "$(jq '.warnings | length' "$kb/manifest.json")" "${missing:+ MISSING=$(echo $missing | tr ' ' ',')}"
 [ "$status" = complete ]

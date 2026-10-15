@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# freshness.sh — CKB freshness rule: fresh at Y  <=>  `git diff --quiet <commit_sha> Y -- . ':(exclude).ckb'`
+# freshness.sh — CKB freshness rule: fresh at Y  <=>  `git diff --quiet <commit_sha> Y -- . ':(exclude).ckb' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md'`
 # Usage: freshness.sh <repo_root> [<kb_dir>] [<Y=HEAD>]
 #        freshness.sh --shallow <clone_dir>   URL mode: the clone is depth 1, so there is no history to walk. The committed
 #          <clone_dir>/.ckb records the commit it ANALYSED; committing the KB made a newer commit, so HEAD never equals it.
@@ -25,10 +25,10 @@ if [ "${1:-}" = --shallow ]; then
   if ! git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null; then
     echo "FRESHNESS=unknown ANALYSED=$sha AT=$at REASON=need-commit(run: clone.sh fetch-commit <job_dir> $sha)"; exit 3
   fi
-  if git -C "$repo" diff --quiet "$sha" "$at" -- . ':(exclude).ckb'; then
+  if git -C "$repo" diff --quiet "$sha" "$at" -- . ':(exclude).ckb' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md'; then
     echo "FRESHNESS=fresh ANALYSED=$sha AT=$at GENERATOR=$gen MODE=shallow-tree-compare"; exit 0
   fi
-  n="$(git -C "$repo" diff --name-only "$sha" "$at" -- . ':(exclude).ckb' | wc -l | tr -d ' ')"
+  n="$(git -C "$repo" diff --name-only "$sha" "$at" -- . ':(exclude).ckb' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md' | wc -l | tr -d ' ')"
   echo "FRESHNESS=stale ANALYSED=$sha AT=$at GENERATOR=$gen REASON=$n-source-files-changed MODE=shallow-tree-compare"; exit 1
 fi
 repo="${1:-}"; [ -d "$repo" ] || { echo "usage: freshness.sh <repo_root> [kb_dir] [ref]" >&2; exit 2; }
@@ -41,7 +41,7 @@ at="$(git -C "$repo" rev-parse --verify -q "$y^{commit}")" || { echo "FRESHNESS=
 # producer-side guards (the spec rule compares commits; these make /kb's skip decision safe)
 mst="$(jq -r '.status // "missing"' "$kb/manifest.json" 2>/dev/null || echo missing)"
 [ "$mst" = complete ] || { echo "FRESHNESS=unknown ANALYSED=${sha:-none} AT=$at REASON=last-run-status-$mst"; exit 3; }
-if [ "$y" = HEAD ] && [ -n "$(git -C "$repo" status --porcelain -- . ':(exclude).ckb' ':(exclude,glob)**/.DS_Store' ':(exclude,glob)**/Thumbs.db' ':(exclude,glob)**/desktop.ini' 2>/dev/null | head -1)" ]; then
+if [ "$y" = HEAD ] && [ -n "$(git -C "$repo" status --porcelain -- . ':(exclude).ckb' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md' ':(exclude,glob)**/.DS_Store' ':(exclude,glob)**/Thumbs.db' ':(exclude,glob)**/desktop.ini' 2>/dev/null | head -1)" ]; then
   echo "FRESHNESS=stale ANALYSED=${sha:-none} AT=$at REASON=dirty-worktree(uncommitted-source-changes)"; exit 1
 fi
 if [ -n "$sha" ] && ! git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null; then
@@ -53,10 +53,10 @@ fi
 [ -n "$sha" ] || { echo "FRESHNESS=unknown REASON=artifact-has-no-commit_sha"; exit 3; }
 git -C "$repo" merge-base --is-ancestor "$sha" "$at" 2>/dev/null \
   || { echo "FRESHNESS=unknown ANALYSED=$sha AT=$at REASON=analysed-commit-not-ancestor"; exit 3; }
-if git -C "$repo" diff --quiet "$sha" "$at" -- . ':(exclude).ckb'; then
+if git -C "$repo" diff --quiet "$sha" "$at" -- . ':(exclude).ckb' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md'; then
   mine="$(jq -r .version "$ROOT/.claude-plugin/plugin.json")"
   note=""; [ "$gen" != "$mine" ] && note=" NOTE=generated-by-$gen-current-is-$mine"
   echo "FRESHNESS=fresh ANALYSED=$sha AT=$at GENERATOR=$gen$note"; exit 0
 fi
-n="$(git -C "$repo" diff --name-only "$sha" "$at" -- . ':(exclude).ckb' | wc -l | tr -d ' ')"
+n="$(git -C "$repo" diff --name-only "$sha" "$at" -- . ':(exclude).ckb' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md' | wc -l | tr -d ' ')"
 echo "FRESHNESS=stale ANALYSED=$sha AT=$at GENERATOR=$gen REASON=$n-source-files-changed"; exit 1

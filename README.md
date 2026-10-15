@@ -4,7 +4,7 @@
 
 # Codebase KB Engine
 
-**Codebase Knowledge Base Engine.** A Claude Code plugin that generates a **verifiable knowledge base inside any repository**, at `<repo>/.ckb/`, ready to commit alongside the code. Generation is read-only: the plugin writes only to `.ckb/` and never edits source or commits.
+**Codebase Knowledge Base Engine.** A Claude Code plugin that generates a **verifiable knowledge base inside any repository**, at `<repo>/.ckb/`, ready to commit alongside the code. Generation is read-only: the plugin writes only to `.ckb/`, plus one exception: on a repository's first `/kb` it creates a `CLAUDE.md` seed (create-only, never overwriting; opt out with `/kb --no-agent-context` or `CKB_AGENT_CONTEXT=off`). It never edits source or commits.
 
 Each run produces, in `.ckb/`:
 
@@ -78,7 +78,7 @@ git add ckb && git commit -m "docs(ckb): knowledge base for <sha>"    # you (or 
 
 `/kb-agent-context` classifies the repo (service, monorepo, library, infrastructure or contract) and writes `.ckb/agent-context.proposed.md`: the template for that archetype with only the lines your manifests, lockfiles, routes, migrations, CI and IaC prove (test commands, "this dependency change also updates that lockfile", "never edit a committed migration"). What no script can know is left as `TODO(human)`. It uses no model, takes seconds and is deterministic.
 
-It **never writes `CLAUDE.md` or `AGENTS.md`** and never overwrites an existing one. You review the proposal, fill the TODO lines, check it with `scripts/lint-agent-context.sh` (six sections, at most 400 words, no TODO, no secrets) and copy it yourself: `cp .ckb/agent-context.proposed.md CLAUDE.md`. Templates and finished examples are in [templates/agent-context/](templates/agent-context/) (MIT-0, copy freely).
+`/kb-agent-context` itself never writes `CLAUDE.md` or `AGENTS.md`, and nothing ever overwrites an existing one. **First run seeds `CLAUDE.md` by default:** the first `/kb` in a repository (no `.ckb/` run yet, no `CLAUDE.md` or `AGENTS.md`) creates `CLAUDE.md` from the proven lines only, create-only, once; review it and commit it with the KB. It is skipped for submodules, gitignored paths, symlinks, repos with too few proven lines, and URL mode, and it is never recreated if you delete it. You review the proposal, fill the TODO lines, check it with `scripts/lint-agent-context.sh` (six sections, at most 400 words, no TODO, no secrets) and copy it yourself: `cp .ckb/agent-context.proposed.md CLAUDE.md`. Templates and finished examples are in [templates/agent-context/](templates/agent-context/) (MIT-0, copy freely).
 
 ## Safety model
 

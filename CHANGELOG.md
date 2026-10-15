@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+- First run seeds `CLAUDE.md` by default: the first `/kb` in a repository creates it from proven lines only (create-only, once, never overwriting; skipped for existing `CLAUDE.md`/`AGENTS.md`, symlinks, gitignored paths, submodules, URL mode, sparse repos). Opt out with `/kb --no-agent-context` or `CKB_AGENT_CONTEXT=off`. Recorded in `manifest.json` as `agent_context`.
+- Freshness ignores the repo-root `CLAUDE.md` and `AGENTS.md` (CKB freshness rule updated in the spec), so committing them never makes the KB stale.
 
 ## [0.10.0] — 2026-10-15
 - `/kb-agent-context` proposes a `CLAUDE.md` / `AGENTS.md` for any repo in seconds, with no model spend: the archetype's template filled only with lines the manifests, lockfiles and buckets prove, `TODO(human)` for the rest. It writes only `.ckb/agent-context.proposed.md` (git-ignored) and never touches `CLAUDE.md` or `AGENTS.md`.

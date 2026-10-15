@@ -167,7 +167,7 @@ ok "docmeta exit 0, all 8 updated"                 '[ $rc -eq 0 ] && grep -qx "D
 ok "front-matter starts the doc"                   '[ "$(head -1 "$D3")" = "---" ] && grep -qx "ckb_doc: \"business-rules\"" "$D3"'
 ok "front-matter fields present"                   'for k in ckb_doc title audience diataxis source_commit branch generator ckb_version confidence freshness_cmd; do grep -q "^$k:" "$D3" || exit 1; done'
 ok "front-matter values from ckb.json"             'grep -qx "source_commit: \"0123456789abcdef0123456789abcdef01234567\"" "$D3" && grep -qx "branch: \"main\"" "$D3" && grep -qx "generator: \"codebase-kb-engine 0.8.0\"" "$D3" && grep -qx "ckb_version: \"0.2\"" "$D3"'
-ok "freshness_cmd exact"                           'grep -qxF "freshness_cmd: \"git diff --quiet 0123456789abcdef0123456789abcdef01234567 HEAD -- . '"':(exclude).ckb'"'\"" "$D3"'
+ok "freshness_cmd exact"                           'grep -qxF "freshness_cmd: \"git diff --quiet 0123456789abcdef0123456789abcdef01234567 HEAD -- . '"':(exclude).ckb' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md'"'\"" "$D3"'
 ok "no generated_at / timestamps"                  '! grep -rqE "generated_at|[0-9]{4}-[0-9]{2}-[0-9]{2}T" "$K"'
 ok "per-doc confidence counts (03: 1/1/0)"         '[ "$(sed -n "/^confidence:/,/^  unknown/p" "$D3" | tr -d " \n")" = "confidence:confirmed:1inferred:1unknown:0" ]'
 ok "body preserved byte-for-byte"                  'for f in "$FX"/good/*.md; do awk "NR==1&&\$0==\"---\"{fm=1;next} fm==1{if(\$0==\"---\")fm=2;next} {print}" "$K/$(basename "$f")" | cmp -s - "$f" || exit 1; done'

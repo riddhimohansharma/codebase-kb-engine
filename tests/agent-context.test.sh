@@ -133,6 +133,57 @@ ok "--out refuses a symlinked .ckb directory"                  '"$G" "$T/linked"
 ok "--out with a missing value is a usage error"               '"$G" "$svc" --out >/dev/null 2>&1; [ $? -eq 2 ]'
 ok "an existing .gitignore is appended to, not clobbered"      'printf "keep-me\n" > "$KB/.gitignore"; "$G" "$svc" --out "$KB/agent-context.proposed.md" >/dev/null; grep -qxF keep-me "$KB/.gitignore" && grep -qxF agent-context.proposed.md "$KB/.gitignore"'
 
+# ================= first-run seed of CLAUDE.md =================
+seedrepo(){ # <name> : a repo with enough proven lines (uv + pytest + migration), the KB dir created like /kb does
+  local d; d="$(mk "$1" pyproject.toml uv.lock db/migration/V1__init.sql src/m.py CHANGELOG.md)"; printf '[tool.pytest.ini_options]\n' > "$d/pyproject.toml"; commit "$d"
+  "$ROOT/scripts/resolve-kb.sh" "$d" >/dev/null; echo "$d"; }
+seed(){ "$G" "$1" --seed; }
+sd="$(seedrepo s1)"
+ok "seed: first run creates CLAUDE.md and says so"            'seed "$sd" > "$T/s.out"; grep -q "^SEED=created$" "$T/s.out" && [ -s "$sd/CLAUDE.md" ]'
+ok "seed: the file passes the strict lint (no TODO, no tags)" '"$L" "$sd/CLAUDE.md" >/dev/null'
+ok "seed: contains only proven lines (uv.lock pair, migration)" 'grep -q "also updates \`uv.lock\`" "$sd/CLAUDE.md" && grep -q "new migration in \`db/migration\`" "$sd/CLAUDE.md" && ! grep -q "TODO" "$sd/CLAUDE.md"'
+ok "seed: writes the marker with path, sha256, bytes"          'jq -e ".seeded == true and .path == \"CLAUDE.md\" and (.sha256 | length) == 64 and .bytes > 0" "$sd/.ckb/.agent-context-seeded" >/dev/null && [ "$(shasum -a 256 "$sd/CLAUDE.md" | cut -d" " -f1)" = "$(jq -r .sha256 "$sd/.ckb/.agent-context-seeded")" ]'
+ok "seed: creates nothing besides CLAUDE.md and the KB marker" '[ "$(git -C "$sd" status --porcelain | sed "s/^?? //" | sort | paste -sd, -)" = ".ckb/,CLAUDE.md" ]'
+ok "seed: a second run does not re-seed"                       '[ "$(seed "$sd")" = "SEED=skipped:already-seeded" ]'
+ok "seed: a deleted CLAUDE.md is never re-created (marker remembers)" 'rm -f "$sd/CLAUDE.md"; [ "$(seed "$sd")" = "SEED=skipped:already-seeded" ] && [ ! -e "$sd/CLAUDE.md" ]'
+skipok(){ [ "$(seed "$1")" = "SEED=skipped:$2" ]; }
+sd="$(seedrepo s2)"; printf 'MINE\n' > "$sd/CLAUDE.md"
+ok "seed: an existing CLAUDE.md is untouched"                  'skipok "$sd" exists:CLAUDE.md && [ "$(cat "$sd/CLAUDE.md")" = MINE ]'
+sd="$(seedrepo s3)"; printf 'MINE\n' > "$sd/AGENTS.md"
+ok "seed: an existing AGENTS.md blocks the seed too"           'skipok "$sd" exists:AGENTS.md && [ ! -e "$sd/CLAUDE.md" ]'
+sd="$(seedrepo s4)"; echo keep > "$T/victim2"; ln -s "$T/victim2" "$sd/CLAUDE.md"
+ok "seed: a symlinked CLAUDE.md is never written through"      'skipok "$sd" exists:CLAUDE.md && [ "$(cat "$T/victim2")" = keep ]'
+sd="$(seedrepo s5)"; ln -s "$T/does-not-exist" "$sd/CLAUDE.md"
+ok "seed: a dangling symlink is refused (the classic attack)"  'skipok "$sd" exists:CLAUDE.md && [ ! -e "$T/does-not-exist" ]'
+sd="$(seedrepo s6)"; printf 'CLAUDE.md\n' > "$sd/.gitignore"
+ok "seed: a gitignored target is refused (reviewers could not see it)" 'skipok "$sd" gitignored && [ ! -e "$sd/CLAUDE.md" ]'
+sd="$(seedrepo s7)"; printf '{}\n' > "$sd/.ckb/manifest.json"
+ok "seed: a repo that already has a KB run is not first run"   'skipok "$sd" not-first-run && [ ! -e "$sd/CLAUDE.md" ]'
+sd="$(seedrepo s8)"
+ok "seed: CKB_AGENT_CONTEXT=off opts out"                      '[ "$(CKB_AGENT_CONTEXT=off "$G" "$sd" --seed)" = "SEED=skipped:opted-out" ] && [ ! -e "$sd/CLAUDE.md" ]'
+sd="$(mk s9 README.md)"; commit "$sd"
+ok "seed: no KB dir (resolve-kb.sh not run) writes nothing"    'skipok "$sd" no-marked-kb-dir && [ ! -e "$sd/CLAUDE.md" ]'
+sd="$(mk s10 README.md notes.txt)"; commit "$sd"; "$ROOT/scripts/resolve-kb.sh" "$sd" >/dev/null
+ok "seed: a repo with too few proven lines is skipped (not worth a commit)" 'skipok "$sd" too-few-proven-lines && [ ! -e "$sd/CLAUDE.md" ]'
+sd="$(seedrepo s11)"; mkdir -p "$T/sup" && git -C "$T/sup" init -q -b main && : > "$T/sup/f" && commit "$T/sup"
+git -C "$T/sup" -c protocol.file.allow=always submodule add -q "$sd" mod >/dev/null 2>&1; "$ROOT/scripts/resolve-kb.sh" "$T/sup/mod" >/dev/null 2>&1
+ok "seed: a submodule checkout is refused"                     '[ -f "$T/sup/mod/.ckb/.ckb-output" ] && [ "$(seed "$T/sup/mod")" = "SEED=skipped:submodule" ] && [ ! -e "$T/sup/mod/CLAUDE.md" ]'
+ok "seed: --seed and --out are exclusive (usage error)"        'sd="$(seedrepo s12)"; "$G" "$sd" --seed --out "$sd/.ckb/agent-context.proposed.md" >/dev/null 2>&1; [ $? -eq 2 ]'
+ok "seed: not a git repo => usage error, nothing written"      '"$G" "$T/plain" --seed >/dev/null 2>&1; [ $? -eq 2 ] && [ ! -e "$T/plain/CLAUDE.md" ]'
+
+# freshness must ignore the seed, or committing it would force a full re-analysis
+fr="$(seedrepo f1)"; sha="$(git -C "$fr" rev-parse HEAD)"
+printf '{"repo":{"commit_sha":"%s"},"generator":{"version":"0.0"}}\n' "$sha" > "$fr/.ckb/ckb.json"; printf '{"status":"complete"}\n' > "$fr/.ckb/manifest.json"
+ok "freshness: fresh before the seed"                          '"$ROOT/scripts/freshness.sh" "$fr" | grep -q "^FRESHNESS=fresh"'
+printf 'x\n' > "$fr/CLAUDE.md"
+ok "freshness: an untracked CLAUDE.md does not make the KB stale (dirty-worktree check)" '"$ROOT/scripts/freshness.sh" "$fr" | grep -q "^FRESHNESS=fresh"'
+git -C "$fr" add CLAUDE.md && git -C "$fr" -c user.email=t@t -c user.name=t commit -qm seed
+ok "freshness: a committed CLAUDE.md keeps the KB fresh"       '"$ROOT/scripts/freshness.sh" "$fr" | grep -q "^FRESHNESS=fresh"'
+printf 'x\n' > "$fr/AGENTS.md"; git -C "$fr" add AGENTS.md && git -C "$fr" -c user.email=t@t -c user.name=t commit -qm agents
+ok "freshness: a committed AGENTS.md keeps the KB fresh"       '"$ROOT/scripts/freshness.sh" "$fr" | grep -q "^FRESHNESS=fresh"'
+mkdir -p "$fr/sub"; printf 'x\n' > "$fr/sub/CLAUDE.md"; git -C "$fr" add -A && git -C "$fr" -c user.email=t@t -c user.name=t commit -qm nested
+ok "freshness: only the ROOT files are excluded (a nested CLAUDE.md is a source change)" '{ "$ROOT/scripts/freshness.sh" "$fr" || true; } | grep -q "^FRESHNESS=stale"'
+
 # ================= plugin wiring =================
 ok "the command file exists and runs both scripts by plugin path" 'grep -q "scripts/agent-context.sh" "$ROOT/commands/kb-agent-context.md" && grep -q "scripts/lint-agent-context.sh" "$ROOT/commands/kb-agent-context.md"'
 ok "the command never tells the model to write CLAUDE.md"      'grep -q "do not edit, create or copy CLAUDE.md" "$ROOT/commands/kb-agent-context.md"'

@@ -59,7 +59,7 @@ else
   fi
   # adopt an unmarked .ckb/ only when every entry is a file this producer writes; anything else is refused below
   if [ "$check" != 1 ] && [ -d "$root/.ckb" ] && [ ! -L "$root/.ckb" ] && [ ! -e "$root/.ckb/.ckb-output" ]; then
-    foreign="$(ls -A "$root/.ckb" 2>/dev/null | grep -vE '^(ckb\.json|ckb\.json\.(candidate|rejected)|ckb\.draft\.json|ckb\.draft\.d|manifest\.json|manifest\.json\.tmp|08-reference\.md|08-reference\.md\.tmp|agent-context\.proposed\.md|09-reference\.md|90-reference\.md|README\.md|\.gitattributes|\.gitignore|0[0-7]-[a-z-]+\.md)$' || true)"
+    foreign="$(ls -A "$root/.ckb" 2>/dev/null | grep -vE '^(ckb\.json|ckb\.json\.(candidate|rejected)|ckb\.draft\.json|ckb\.draft\.d|manifest\.json|manifest\.json\.tmp|08-reference\.md|08-reference\.md\.tmp|agent-context\.proposed\.md|\.agent-context-seeded|09-reference\.md|90-reference\.md|README\.md|\.gitattributes|\.gitignore|0[0-7]-[a-z-]+\.md)$' || true)"
     if [ -z "$foreign" ]; then
       printf 'ckb-output v1 — written by a CKB producer; safe to commit.\n' > "$root/.ckb/.ckb-output" || die 3 "could not mark '$root/.ckb'"
       echo "ADOPTED=.ckb (unmarked KB folder holding only producer files; marker .ckb/.ckb-output added)"

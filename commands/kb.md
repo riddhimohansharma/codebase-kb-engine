@@ -1,14 +1,14 @@
 ---
 description: Generate the repo's knowledge base in <repo>/.ckb/ (8 docs + generated reference + CKB v0.2 ckb.json + manifest.json), ready to commit. Read-only toward the code; skips when the KB is already fresh.
-argument-hint: "[--force] [<repo-url> [branch]] [focus]"
+argument-hint: "[--force] [--no-agent-context] [<repo-url> [branch]] [focus]"
 ---
-Produce the knowledge base for the target below. The code is READ-ONLY: the guard allows writes only inside the KB dir, and you never commit, push, or edit source.
+Produce the knowledge base for the target below. The code is READ-ONLY: the guard allows writes only inside the KB dir (the one-time `CLAUDE.md` seed in step 2b is made by a plugin script, never by you), and you never commit, push, or edit source.
 
 Arguments: `$ARGUMENTS`
 
 **Rule:** run each `${CLAUDE_PLUGIN_ROOT}/scripts/*` command **on its own**, never chained with `;`, `&&` or `|`. Plugin scripts are pre-approved only as standalone commands.
 
-**1. Mode.** Remove a leading `--force` flag if present and remember it. If the next argument starts with `https://`, `http://`, `ssh://`, `git://`, or matches `user@host:path`, this is **URL mode**: the following argument (if present and it contains no spaces) is the branch, and anything after that is focus. Otherwise this is **local mode** (the standard): the target is the current git repo, the KB is `<repo-root>/.ckb/`, and all arguments are focus.
+**1. Mode.** Remove a leading `--force` flag and a `--no-agent-context` flag (either order) if present and remember them. If the next argument starts with `https://`, `http://`, `ssh://`, `git://`, or matches `user@host:path`, this is **URL mode**: the following argument (if present and it contains no spaces) is the branch, and anything after that is focus. Otherwise this is **local mode** (the standard): the target is the current git repo, the KB is `<repo-root>/.ckb/`, and all arguments are focus.
 
 **2. Target + output dir.** Run exactly one of:
 - local: `"${CLAUDE_PLUGIN_ROOT}/scripts/resolve-kb.sh" .`
@@ -16,9 +16,11 @@ Arguments: `$ARGUMENTS`
 
 If the output includes a `MIGRATED=` line, tell the user the visible `ckb/` folder was renamed to the canonical hidden `.ckb/` and pass on its commit instruction. If it includes an `ADOPTED=` line, tell the user an unmarked `.ckb/` holding only producer files was marked as the KB. Record `REPO_ROOT`, `KB_DIR`, `ADD_DIR_HINT` and the start time (`date -u +%Y-%m-%dT%H:%M:%SZ`). If a script exits non-zero, show its message verbatim, run step 11 if in URL mode, and STOP.
 
+**2b. First-run agent context (local mode only, default on).** Unless `--no-agent-context` was given, run `"${CLAUDE_PLUGIN_ROOT}/scripts/agent-context.sh" "<REPO_ROOT>" --seed` on its own, before the analysis. On a repository's first run, with no `CLAUDE.md` or `AGENTS.md` present, it creates `CLAUDE.md` from facts the manifests and inventory prove (create-only, never overwrites, never in URL mode). Report its `SEED=` line verbatim: `created` means the user should review `CLAUDE.md` and commit it with the KB; `skipped:<reason>` means nothing was written (`/kb-agent-context` proposes a file instead). Never edit or create `CLAUDE.md` yourself. If the run is later stopped, the seed stays and is not repeated.
+
 **3. Freshness (local mode).** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/freshness.sh" "<REPO_ROOT>"`.
 - If it prints `FRESHNESS=fresh` and `--force` was not given, report that the committed KB already describes the current source (quote the line) and STOP without writing anything.
-- If it prints `FRESHNESS=stale` with an `ANALYSED=` sha, an **incremental refresh** is allowed. Run `git -C "<REPO_ROOT>" diff --name-only <ANALYSED> HEAD -- . ':(exclude).ckb'`, give that list to the scouts as priority, and keep the existing names and headings for entities whose citations still resolve.
+- If it prints `FRESHNESS=stale` with an `ANALYSED=` sha, an **incremental refresh** is allowed. Run `git -C "<REPO_ROOT>" diff --name-only <ANALYSED> HEAD -- . ':(exclude).ckb' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md'`, give that list to the scouts as priority, and keep the existing names and headings for entities whose citations still resolve.
 - If uncommitted source changes exist, warn the user that the KB will describe uncommitted work.
 - **Self-improvement:** if `<KB_DIR>/manifest.json` from a previous run has a `feedback` block, read it. Give `feedback.next_run_focus` (files left uncited and claims downgraded last time) to the scouts as **first priority**. In the final report, list every `feedback.improve_candidates` entry as a suggested rule improvement for the plugin maintainer.
 

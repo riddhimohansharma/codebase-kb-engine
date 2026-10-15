@@ -7,19 +7,22 @@
 # What it does: classify the repo (archetype.sh over inventory.sh), then emit the template for that archetype with only lines that
 #   a manifest, lockfile, route/migration/IaC/CI bucket or directory listing proves. Everything a machine cannot know is a
 #   `TODO(human)` line. No model is used; same repo state gives byte-identical output (no dates, sorted lists).
+#   --seed   : first-run seeding of <repo>/CLAUDE.md, create-only (see the block below for every condition). Exclusive with --out.
+#              Prints SEED=created|skipped:<reason>; a skip writes nothing. Off with CKB_AGENT_CONTEXT=off.
 # With --out prints KEY=VALUE lines: ARCHETYPE, MODIFIERS, OUTPUT, WORDS, TODOS, CLAUDE_MD, AGENTS_MD, NEXT. Exit: 0 · 1 generator/lint failure · 2 usage.
 # bash 3.2+, jq 1.6+.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd -P)"
 die(){ echo "agent-context: $*" >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || die "jq is required"
-OUT=""; REPO=""
+OUT=""; REPO=""; SEED=0
 while [ $# -gt 0 ]; do
-  case "$1" in --out) [ $# -ge 2 ] || die "--out needs a file"; OUT="$2"; shift ;; -*) die "unknown option: $1" ;; *) REPO="$1" ;; esac; shift
+  case "$1" in --out) [ $# -ge 2 ] || die "--out needs a file"; OUT="$2"; shift ;; --seed) SEED=1 ;; -*) die "unknown option: $1" ;; *) REPO="$1" ;; esac; shift
 done
 [ -n "$REPO" ] && [ -d "$REPO" ] || die "usage: agent-context.sh <repo> [--out FILE]"
 root="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" || die "not inside a git work tree: $REPO"
 root="$(cd "$root" && pwd -P)"
+[ "$SEED" = 1 ] && [ -n "$OUT" ] && die "--seed and --out are exclusive"
 
 if [ -n "$OUT" ]; then
   case "$OUT" in /*) ;; *) OUT="$PWD/$OUT" ;; esac
@@ -153,6 +156,34 @@ if [ "$(words "$text")" -gt 400 ]; then text="$(render 1 3)" || exit 1; fi
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 printf '%s\n' "$text" > "$T/p.md"
 lint="$("$HERE/lint-agent-context.sh" "$T/p.md" --proposal)" || { echo "agent-context: generated proposal failed its own lint:" >&2; printf '%s\n' "$lint" >&2; exit 1; }
+
+# ---- first-run seed of <repo>/CLAUDE.md: create-only, every condition checked here (the guard stays strict) ----
+if [ "$SEED" = 1 ]; then
+  skip(){ echo "SEED=skipped:$1"; exit 0; }
+  kb="$root/.ckb"
+  [ "${CKB_AGENT_CONTEXT:-}" = off ] && skip opted-out
+  [ -d "$kb" ] && [ ! -L "$kb" ] && [ -f "$kb/.ckb-output" ] || skip no-marked-kb-dir
+  [ -e "$kb/manifest.json" ] && skip not-first-run
+  [ -e "$kb/.agent-context-seeded" ] && skip already-seeded
+  sup="$(git -C "$root" rev-parse --show-superproject-working-tree 2>/dev/null)" || skip git-failed
+  [ -z "$sup" ] || skip submodule
+  for f in CLAUDE.md AGENTS.md; do if [ -e "$root/$f" ] || [ -L "$root/$f" ]; then skip "exists:$f"; fi; done
+  git -C "$root" check-ignore -q CLAUDE.md 2>/dev/null; rc=$?
+  [ $rc -eq 0 ] && skip gitignored
+  [ $rc -eq 1 ] || skip git-failed
+  # the seed is the proposal minus every TODO(human) line: only what the repo proves
+  { echo '<!-- Seeded once by codebase-kb-engine from the repo manifests and inventory. Edit freely: it is never regenerated or overwritten. /kb-agent-context lists what a person still has to add. -->'
+    awk 'NR==1 && /^<!--/ {next} {print}' "$T/p.md" | grep -v 'TODO(human)'; } > "$T/seed.md"
+  [ "$(grep -c '^- ' "$T/seed.md")" -ge 3 ] || skip too-few-proven-lines
+  "$HERE/lint-agent-context.sh" "$T/seed.md" >/dev/null 2>&1 || skip lint-failed
+  target="$root/CLAUDE.md"
+  ( set -o noclobber; cat "$T/seed.md" > "$target" ) 2>/dev/null || skip "create-failed"   # O_EXCL: never overwrites, never follows a symlink
+  sum="$( { shasum -a 256 "$target" 2>/dev/null || sha256sum "$target"; } | cut -d' ' -f1)"
+  jq -n --arg sha "$sum" --arg b "$(wc -c < "$target" | tr -d ' ')" --arg a "$(printf '%s' "$arch" | jq -r .archetype)" \
+    '{seeded: true, path: "CLAUDE.md", sha256: $sha, bytes: ($b | tonumber), archetype: $a}' > "$kb/.agent-context-seeded" 2>/dev/null
+  printf 'SEED=created\nSEED_PATH=CLAUDE.md\nSEED_SHA256=%s\nARCHETYPE=%s\nNEXT=review CLAUDE.md, then commit it with the KB: git add .ckb CLAUDE.md\n' "$sum" "$(printf '%s' "$arch" | jq -r .archetype)"
+  exit 0
+fi
 
 if [ -z "$OUT" ]; then cat "$T/p.md"; exit 0; fi
 

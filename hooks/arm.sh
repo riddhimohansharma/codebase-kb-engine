@@ -31,7 +31,7 @@ case "$event" in
     if printf '%s' "$prompt" | grep -qE '^[[:space:]]*/(codebase-kb-engine:)?(kb|kb-validate|kb-agent-context)([[:space:]]|$)'; then
       : > "$STATE/$sid"
       [ -e "$STATE/$sid.kbstart" ] || date -u +%Y-%m-%dT%H:%M:%SZ > "$STATE/$sid.kbstart"   # stable start marker (the armed file is rewritten by the guard)
-      echo "[codebase-kb-engine] Read-only mode ON for this session: the repo cannot be modified; writes are allowed only inside <repo>/.ckb/ (the knowledge base). The user can type /kb-unlock to release."
+      echo "[codebase-kb-engine] Read-only mode ON for this session: the repo cannot be modified; writes are allowed only inside <repo>/.ckb/ (the knowledge base); the only other file the plugin may create is a first-run CLAUDE.md seed, made by its own script and never overwriting (off with CKB_AGENT_CONTEXT=off). The user can type /kb-unlock to release."
     fi ;;
 esac
 exit 0

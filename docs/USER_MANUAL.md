@@ -113,6 +113,10 @@ Writes `<repo>/.ckb/agent-context.proposed.md` and nothing else. The repo is cla
 
 The command never creates, edits or overwrites `CLAUDE.md` or `AGENTS.md`, and the read-only gate blocks the model from doing so too. If a `CLAUDE.md` exists, the next step it prints is `diff CLAUDE.md .ckb/agent-context.proposed.md`. To adopt the proposal: fill or delete every TODO line, delete the leading comment, run `scripts/lint-agent-context.sh <file>` (six sections in order, at most 400 words, no dates, no secrets, no TODO), then copy it yourself. The proposal is git-ignored inside `.ckb/` so it is never committed by accident.
 
+### First-run `CLAUDE.md` seed (on by default)
+
+The first `/kb` in a repository also runs `scripts/agent-context.sh <repo> --seed` before the analysis. It creates `<repo>/CLAUDE.md` from the same proven lines as `/kb-agent-context`, minus every `TODO(human)` line, once. It writes nothing when: `CLAUDE.md` or `AGENTS.md` already exists (file or symlink, even dangling), the path is gitignored, the repo is a submodule, a previous `/kb` run exists, fewer than three lines are proven, or the mode is URL mode. The creation is atomic and create-only, and a marker `.ckb/.agent-context-seeded` (committed with the KB) records the path, hash and size, so a deleted `CLAUDE.md` is never recreated. Opt out with `/kb --no-agent-context`, or fleet-wide with `CKB_AGENT_CONTEXT=off` in the environment (for example Claude Code managed settings). Review the file and commit it with the KB; the freshness rule ignores the root `CLAUDE.md` and `AGENTS.md`, so committing them never makes the KB stale.
+
 ### `/kb-validate [path/to/ckb.json]`: check an artifact
 
 Defaults to `<repo-root>/.ckb/ckb.json`. It reports one row per check (JSON Schema, then rules R1–R7) plus freshness. It never reports a skipped check as a pass.
@@ -191,7 +195,7 @@ Every doc starts with **deterministic YAML front-matter** (`ckb_doc`, audience, 
 `ckb.json` records the **source commit that was analysed**. Committing `.ckb/` creates a new commit, and that's expected.
 
 > **The KB is fresh at commit `Y` if and only if nothing outside `.ckb/` changed between the analysed commit and `Y`:**
-> `git diff --quiet <commit_sha> Y -- . ':(exclude).ckb'`
+> `git diff --quiet <commit_sha> Y -- . ':(exclude).ckb' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md'`
 
 | Result | Meaning | `/kb` does |
 |---|---|---|
