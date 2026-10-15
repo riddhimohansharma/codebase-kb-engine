@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+- Licences: the vendored spec is now Apache-2.0 (was CC BY-ND 4.0) and `templates/agent-context/` is MIT-0; the plugin stays PolyForm Shield 1.0.0. Re-vendored the spec at the `.ckb/` rename.
+- Added CODE_OF_CONDUCT.md and GitHub issue templates (bug, expressiveness gap); security reports are routed to the private channel.
 - Generated reference is now `08-reference.md`, so the `.ckb/` numbering is contiguous 00–08 (was `09-reference.md`, leaving 08 empty). Old `09-`/`90-reference.md` files are removed on regeneration and tolerated by `resolve-kb.sh`.
 - The KB folder is the hidden `.ckb/` (was `ckb/`). A marked `ckb/` migrates automatically, and an unmarked `.ckb/` holding only producer files is adopted; anything else is refused, never overwritten. `COMMIT_HINT` now says `git add .ckb`.
 - Inventory: shell scripts (`sh`, `bash`) are now content-sniffed. Areas carry a `tier` (`source`, `test`, `docs`) and content-sniffed entries are marked in `sniffed`. `inventory.sh --out FILE` writes the full inventory and prints a ~2 KB digest; `kbq.sh inventory` gives each scout only its slice. Scouts are packed into at most 7 scopes plus the inventory scout.

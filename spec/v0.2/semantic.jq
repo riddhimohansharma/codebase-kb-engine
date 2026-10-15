@@ -5,7 +5,7 @@ include "derive";
 def coll_prefix: {components:"component", interfaces:"interface", dependencies:"dependency", datastores:"datastore", business_rules:"business_rule", workflows:"workflow", artifacts:"artifact", services:"service", config_keys:"config", external_services:"external", api_specs:"api_spec"};
 def ids: [.entities[]?[]?.id];
 def claims: [.entities[]?[]?, .relations[]?];
-def in_kb: . == "ckb" or startswith("ckb/");
+def in_kb: . == ".ckb" or startswith(".ckb/");
 . as $a
 | (ids) as $ids
 | ([$a.entities.interfaces[]? | {key: .id, value: .}] | from_entries) as $ifaces

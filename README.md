@@ -187,4 +187,4 @@ Security issues: see [SECURITY.md](SECURITY.md). Contributing: [CONTRIBUTING.md]
 - **Free to use** for everyone, including commercial and internal use at your company. You may modify it for your own use, and share it.
 - **Not allowed:** using this software to provide a product that **competes** with it or with the author's products built on it (CKB producers, consumers, code-knowledge graphs).
 - **Contributions are not accepted** (see [CONTRIBUTING.md](CONTRIBUTING.md)).
-- The vendored spec in `spec/` is CC BY-ND 4.0. "CKB" is a trademark; see [NOTICE](NOTICE).
+- The vendored spec in `spec/` is Apache-2.0, and `templates/agent-context/` is MIT-0 (copy freely). "CKB" is a trademark; see [NOTICE](NOTICE).

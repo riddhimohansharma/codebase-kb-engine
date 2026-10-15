@@ -5,8 +5,10 @@ The plugin is licensed under the PolyForm Shield License 1.0.0 (see LICENSE) fro
 including release 0.8.0. Earlier commits, up to and including 8b952d1 (and releases 0.7.0 and earlier), were
 published under the MIT License, and those exact commits remain available under MIT terms.
 
-spec/ contains the CKB specification, © 2026 Riddhi Mohan Sharma, redistributed unmodified under the
-Creative Commons Attribution-NoDerivatives 4.0 International License (CC BY-ND 4.0):
-https://github.com/riddhimohansharma/codebase-kb-spec  ·  https://creativecommons.org/licenses/by-nd/4.0/
+spec/ contains the CKB specification, © 2026 Riddhi Mohan Sharma, redistributed under the
+Apache License, Version 2.0 (earlier revisions were published under CC BY-ND 4.0):
+https://github.com/riddhimohansharma/codebase-kb-spec  ·  https://www.apache.org/licenses/LICENSE-2.0
 
 "CKB" and "Codebase Knowledge Base" are trademarks of Riddhi Mohan Sharma; see the spec's TRADEMARKS.md.
+
+templates/agent-context/ is licensed under MIT-0 (see templates/agent-context/LICENSE).

@@ -1,0 +1,19 @@
+name: Bug report
+description: Something in the plugin did not work as documented
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes: {label: Plugin version, description: "From .claude-plugin/plugin.json or /plugin"}
+    validations: {required: true}
+  - type: textarea
+    id: what
+    attributes: {label: What happened and what you expected, description: Do not paste secrets or proprietary code.}
+    validations: {required: true}
+  - type: textarea
+    id: steps
+    attributes: {label: Steps to reproduce, description: "Command run (for example /kb), repo size and language mix, and the manifest.json status if present."}
+    validations: {required: true}
+  - type: input
+    id: env
+    attributes: {label: "OS, shell, jq version"}

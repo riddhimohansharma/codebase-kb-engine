@@ -1,0 +1,11 @@
+name: Gap or feature request
+description: A repo fact the KB or the CKB format cannot express, or a missing capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: gap
+    attributes: {label: What is missing, description: A minimal example is the most useful input.}
+    validations: {required: true}
+  - type: textarea
+    id: why
+    attributes: {label: Why it matters}

@@ -27,3 +27,5 @@ Budget: **400 words** for the whole file. If it does not fit, split the scope (a
 ## Treat it as code
 
 Every agent in the organisation obeys this file on every turn, and anyone who can commit can edit it. Review it like code (CODEOWNERS), never put secrets or credentials in it, and do not let it tell an agent to fetch and run anything.
+
+The files in templates/agent-context/ are licensed under MIT-0 (see LICENSE in this folder), not the plugin licence, so they can be copied into any repository without a notice.
