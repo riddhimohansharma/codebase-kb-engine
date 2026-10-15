@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # arm.sh — scopes the read-only gate to sessions that use this plugin.
-# UserPromptSubmit: /kb or /kb-validate (optionally namespaced codebase-kb-engine:) ARMS the session;
+# UserPromptSubmit: /kb, /kb-validate or /kb-agent-context (optionally namespaced codebase-kb-engine:) ARMS the session;
 #   /map, /hunt, /plan do NOT arm (their names collide with other plugins' commands, e.g. /plan);
 #                   /kb-unlock DISARMS it (only a human-typed prompt can do this — the model cannot).
 # SessionEnd:       disarms. Stale arm files (>24h) are purged. After an interactive /kb, backfills token usage (scripts/usage.sh).
@@ -28,7 +28,7 @@ case "$event" in
     if printf '%s' "$prompt" | grep -qE '^[[:space:]]*/(codebase-kb-engine:)?kb-unlock([[:space:]]|$)'; then
       rm -f "$STATE/$sid"; echo "[codebase-kb-engine] Read-only mode OFF for this session."; exit 0
     fi
-    if printf '%s' "$prompt" | grep -qE '^[[:space:]]*/(codebase-kb-engine:)?(kb|kb-validate)([[:space:]]|$)'; then
+    if printf '%s' "$prompt" | grep -qE '^[[:space:]]*/(codebase-kb-engine:)?(kb|kb-validate|kb-agent-context)([[:space:]]|$)'; then
       : > "$STATE/$sid"
       [ -e "$STATE/$sid.kbstart" ] || date -u +%Y-%m-%dT%H:%M:%SZ > "$STATE/$sid.kbstart"   # stable start marker (the armed file is rewritten by the guard)
       echo "[codebase-kb-engine] Read-only mode ON for this session: the repo cannot be modified; writes are allowed only inside <repo>/.ckb/ (the knowledge base). The user can type /kb-unlock to release."

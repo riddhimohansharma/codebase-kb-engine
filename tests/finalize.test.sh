@@ -203,6 +203,11 @@ mkgold; rm "$KB/07-decisions.md"; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T
 ok "missing doc -> status=incomplete"                 '[ $rc -ne 0 ] && [ "$(jq -r .status "$M")" = incomplete ]'
 mkgold; echo old > "$KB/09-reference.md"; echo old > "$KB/90-reference.md"; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1
 ok "legacy 09-/90-reference.md removed; numbering contiguous 00-08" '[ ! -e "$KB/09-reference.md" ] && [ ! -e "$KB/90-reference.md" ] && [ -f "$KB/08-reference.md" ] && [ "$(ls "$KB" | grep -E "^0[0-9]-" | cut -c1-2 | paste -sd, -)" = 00,01,02,03,04,05,06,07,08 ]'
+mkgold; printf "# Agent context — golden\n\nTODO(human)\n" > "$KB/agent-context.proposed.md"; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1; rc=$?
+ok "a leftover agent-context proposal does not break finalize"   '[ $rc -eq 0 ] && [ "$(jq -r .status "$M")" = complete ]'
+ok "the proposal is kept out of commits by the KB .gitignore"    'grep -qxF agent-context.proposed.md "$KB/.gitignore"'
+ok "the proposal is not listed as a KB output"                   '! jq -e ".outputs[] | select(.file == \"agent-context.proposed.md\")" "$M" >/dev/null'
+rm -f "$KB/agent-context.proposed.md"
 rm -f "$KB/.ckb-output"; mkgold; "$ROOT/scripts/finalize.sh" "$GOLD" "$KB" >"$T/out" 2>&1; rc=$?
 ok "refuses dir without .ckb-output marker"           '[ $rc -eq 2 ]'
 

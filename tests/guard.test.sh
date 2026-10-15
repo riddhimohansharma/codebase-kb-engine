@@ -32,6 +32,16 @@ payload s3 Bash command "$ROOT/scripts/validate.sh $KB/ckb.json" | expect allow 
 payload s3 Write file_path "$REPO/src/a.ts" | expect block "plugin script invocation arms session"
 payload s4 Bash command "KB_DIR=$KB \"$ROOT/scripts/resolve-kb.sh\" $REPO" | expect allow "quoted script with VAR= prefix allowed"
 payload s4 Write file_path "$REPO/src/a.ts" | expect block "...and arms"
+prompt s6 "/kb-agent-context"; payload s6 Write file_path "$REPO/src/a.ts" | expect block "/kb-agent-context arms session"
+prompt s6b "/codebase-kb-engine:kb-agent-context ."; payload s6b Bash command "touch $REPO/x" | expect block "namespaced /kb-agent-context arms"
+payload s7 Bash command "\"$ROOT/scripts/agent-context.sh\" \"$REPO\" --out \"$KB/agent-context.proposed.md\"" | expect allow "agent-context.sh --out (the command's real invocation) allowed"
+payload s7 Bash command "\"$ROOT/scripts/lint-agent-context.sh\" \"$KB/agent-context.proposed.md\"" | expect allow "lint-agent-context.sh allowed"
+payload s7 Write file_path "$REPO/CLAUDE.md" | expect block "armed: Write to the repo-root CLAUDE.md is still blocked"
+payload s7 Write file_path "$REPO/AGENTS.md" | expect block "armed: Write to the repo-root AGENTS.md is still blocked"
+payload s7 Write file_path "$KB/agent-context.proposed.md" | expect allow "armed: Write of the proposal inside the marked .ckb is allowed"
+payload s7 Bash command "cp $KB/agent-context.proposed.md $REPO/CLAUDE.md" | expect block "armed: cp of the proposal to CLAUDE.md is blocked (the user does it)"
+mkdir -p "$T/fake/scripts" && cp "$ROOT/scripts/agent-context.sh" "$T/fake/scripts/agent-context.sh"
+payload s7 Bash command "\"$T/fake/scripts/agent-context.sh\" \"$REPO\"" | expect block "a copy of agent-context.sh outside the plugin root is not pre-approved"
 payload s5 Bash command "\"$ROOT/scripts/inventory.sh\" \"$REPO\" --out \"$KB/ckb.draft.d/.inventory.json\"" | expect allow "inventory.sh --out (the orchestrator's real command) allowed"
 payload s5 Bash command "\"$ROOT/scripts/kbq.sh\" inventory \"$KB\" services-gateway" | expect allow "kbq.sh inventory (a scout's first action) allowed"
 payload s5 Bash command "\"$ROOT/scripts/finalize.sh\" \"$REPO\" \"$KB\" --inventory \"$KB/ckb.draft.d/.inventory.json\" --attempt 1 --scouts 7 --writers 2 --retries 0" | expect allow "finalize.sh with --inventory and fan-out counts allowed"
@@ -131,6 +141,8 @@ R7="$T/r7"; mkdir -p "$R7/.ckb" "$R7/ckb" && git -C "$R7" init -q && touch "$R7/
 rc=$(res "$R7");                               chk "no migration when .ckb/ already exists"         '[ $rc -eq 0 ] && [ -d "$R7/.ckb" ] && [ -d "$R7/ckb" ] && ! grep -q MIGRATED "$T/o"'
 R8="$T/r8"; mkdir -p "$R8/.ckb" && git -C "$R8" init -q && echo '{}' > "$R8/.ckb/ckb.json" && echo kb > "$R8/.ckb/00-overview.md"
 rc=$(res "$R8");                               chk "unmarked .ckb/ with only producer files adopted" '[ $rc -eq 0 ] && [ -f "$R8/.ckb/.ckb-output" ] && grep -q "^ADOPTED=" "$T/o"'
+R8b="$T/r8b"; mkdir -p "$R8b/.ckb" && git -C "$R8b" init -q && echo kb > "$R8b/.ckb/agent-context.proposed.md"
+rc=$(res "$R8b");                              chk "unmarked .ckb/ holding only a proposal is adopted (not foreign)" '[ $rc -eq 0 ] && grep -q "^ADOPTED=" "$T/o"'
 R9="$T/r9"; mkdir -p "$R9/ckb" && git -C "$R9" init -q && touch "$R9/ckb/.ckb-output"
 rc=$(res "$R9" --check);                       chk "--check never migrates"                          '[ $rc -eq 0 ] && [ -d "$R9/ckb" ] && [ ! -e "$R9/.ckb" ]'
 

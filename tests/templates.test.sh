@@ -12,7 +12,7 @@ sections(){ grep -E '^## ' "$1" | sed 's/^## //' | paste -sd'|' -; }
 
 ok "README and modifiers exist"                      '[ -s "$TPL/README.md" ] && [ -s "$TPL/modifiers.md" ]'
 ok "README states the admission rule and the 400-word budget" 'grep -q "would otherwise do the wrong thing" "$TPL/README.md" && grep -q "400 words" "$TPL/README.md"'
-ok "README is honest that the engine does not generate the file yet" 'grep -qi "does not generate or write this file yet" "$TPL/README.md"'
+ok "README is honest that the engine proposes but never writes CLAUDE.md/AGENTS.md" 'grep -q "never writes \`CLAUDE.md\` or \`AGENTS.md\` itself" "$TPL/README.md"'
 
 for s in A-service B-monorepo C-library D-infrastructure E-contract; do
   f="$TPL/$s.md"
@@ -52,6 +52,7 @@ seed(){ # <name> <repo dir or empty to skip>
   ok "seed $1: H1 names the repo"                      'grep -m1 "^# " "$f" | grep -qx "# Agent context — $nm"'
   ok "seed $1: the six sections, in order, and no others" '[ "$(sections "$f")" = "$SECTIONS" ]'
   ok "seed $1: within the 400-word budget"             '[ "$(words "$f")" -le 400 ]'
+  ok "seed $1: passes scripts/lint-agent-context.sh (strict)"   '"$ROOT/scripts/lint-agent-context.sh" "$f" >/dev/null'
   ok "seed $1: no [P]/[H] tags left in a finished seed" '! grep -qE "\[(P|H)\]" "$f"'
   ok "seed $1: no dates, no secret-looking values"      '! grep -qE "[0-9]{4}-[0-9]{2}-[0-9]{2}|AKIA[0-9A-Z]{12}|(password|secret|token)[ ]*[:=]" "$f"'
   ok "seed $1: no instruction to fetch and run anything" '! grep -qiE "curl[^|]*\|[ ]*(ba)?sh|wget[^|]*\|[ ]*(ba)?sh|--dangerously|--no-verify|skip (the )?confirmation" "$f"'

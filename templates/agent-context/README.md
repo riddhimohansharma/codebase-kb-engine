@@ -2,7 +2,7 @@
 
 Seed content for the file every coding agent reads before it touches a repo: `CLAUDE.md` for Claude Code, `AGENTS.md` for other tools. One body serves both; only the filename differs.
 
-**Status.** The engine does not generate or write this file yet. These are hand-copied seeds that define the shape, so a later generator has something to target and a team can start today.
+**Status.** `/kb-agent-context` proposes this file for any repo from its manifests, lockfiles and inventory (no model spend) and writes it only to `.ckb/agent-context.proposed.md`. It never writes `CLAUDE.md` or `AGENTS.md` itself and never overwrites an existing one: you review the proposal, fill the `TODO(human)` lines and copy it. These templates and seeds define the shape it targets.
 
 ## The one rule
 
@@ -18,7 +18,8 @@ Budget: **400 words** for the whole file. If it does not fit, split the scope (a
 
 ## Use it
 
-1. Classify the repo: `scripts/archetype.sh <repo>` prints the archetype (A to E) and modifiers.
+0. Fast path: run `/kb-agent-context`. It classifies the repo, fills what the repo proves, and leaves `TODO(human)` for the rest. `scripts/lint-agent-context.sh <file>` checks the finished file (six sections, 400 words, no TODO, no secrets).
+1. By hand: classify the repo with `scripts/archetype.sh <repo>` (archetype A to E and modifiers).
 2. Copy the matching skeleton (`A-service.md` to `E-contract.md`), append the modifier blocks from `modifiers.md`, and replace the example lines with your repo's.
 3. In skeletons, `[P]` marks a line that can be projected from the repo's `ckb.json`; `[H]` marks one only a human can write. Delete the tags before committing.
 
