@@ -40,6 +40,8 @@ payload s7 Write file_path "$REPO/CLAUDE.md" | expect block "armed: Write to the
 payload s7 Write file_path "$REPO/AGENTS.md" | expect block "armed: Write to the repo-root AGENTS.md is still blocked"
 payload s7 Write file_path "$KB/agent-context.proposed.md" | expect allow "armed: Write of the proposal inside the marked .ckb is allowed"
 payload s7 Bash command "cp $KB/agent-context.proposed.md $REPO/CLAUDE.md" | expect block "armed: cp of the proposal to CLAUDE.md is blocked (the user does it)"
+payload s7 Bash command "\"$ROOT/scripts/checkpoint.sh\" begin \"$KB\" \"$REPO\"" | expect allow "checkpoint.sh begin (kb.md step 4a) allowed"
+payload s7 Bash command "\"$ROOT/scripts/checkpoint.sh\" status \"$KB\"" | expect allow "checkpoint.sh status allowed"
 mkdir -p "$T/fake/scripts" && cp "$ROOT/scripts/agent-context.sh" "$T/fake/scripts/agent-context.sh"
 payload s7 Bash command "\"$T/fake/scripts/agent-context.sh\" \"$REPO\"" | expect block "a copy of agent-context.sh outside the plugin root is not pre-approved"
 payload s5 Bash command "\"$ROOT/scripts/inventory.sh\" \"$REPO\" --out \"$KB/ckb.draft.d/.inventory.json\"" | expect allow "inventory.sh --out (the orchestrator's real command) allowed"

@@ -1,6 +1,6 @@
 ---
 description: Generate the repo's knowledge base in <repo>/.ckb/ (8 docs + generated reference + CKB v0.2 ckb.json + manifest.json), ready to commit. Read-only toward the code; skips when the KB is already fresh.
-argument-hint: "[--force] [--no-agent-context] [<repo-url> [branch]] [focus]"
+argument-hint: "[--force] [--fresh] [--no-agent-context] [<repo-url> [branch]] [focus]"
 ---
 Produce the knowledge base for the target below. The code is READ-ONLY: the guard allows writes only inside the KB dir (the one-time `CLAUDE.md` seed in step 2b is made by a plugin script, never by you), and you never commit, push, or edit source.
 
@@ -8,7 +8,7 @@ Arguments: `$ARGUMENTS`
 
 **Rule:** run each `${CLAUDE_PLUGIN_ROOT}/scripts/*` command **on its own**, never chained with `;`, `&&` or `|`. Plugin scripts are pre-approved only as standalone commands.
 
-**1. Mode.** Remove a leading `--force` flag and a `--no-agent-context` flag (either order) if present and remember them. If the next argument starts with `https://`, `http://`, `ssh://`, `git://`, or matches `user@host:path`, this is **URL mode**: the following argument (if present and it contains no spaces) is the branch, and anything after that is focus. Otherwise this is **local mode** (the standard): the target is the current git repo, the KB is `<repo-root>/.ckb/`, and all arguments are focus.
+**1. Mode.** Remove a leading `--force`, `--fresh` and `--no-agent-context` flag (any order) if present and remember them. `--fresh` ignores any saved checkpoint and starts the analysis from scratch. If the next argument starts with `https://`, `http://`, `ssh://`, `git://`, or matches `user@host:path`, this is **URL mode**: the following argument (if present and it contains no spaces) is the branch, and anything after that is focus. Otherwise this is **local mode** (the standard): the target is the current git repo, the KB is `<repo-root>/.ckb/`, and all arguments are focus.
 
 **2. Target + output dir.** Run exactly one of:
 - local: `"${CLAUDE_PLUGIN_ROOT}/scripts/resolve-kb.sh" .`
@@ -33,6 +33,8 @@ If the output includes a `MIGRATED=` line, tell the user the visible `ckb/` fold
 
 **4. Permission probe.** Write `<KB_DIR>/manifest.json` with `{"status":"running"}` using the Write tool. If it is denied, print exactly one line, the `ADD_DIR_HINT` value, run step 11 if in URL mode, and STOP.
 
+**4a. Checkpoint (resume, never restart).** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/checkpoint.sh" begin "<KB_DIR>" "<REPO_ROOT>"` on its own (add `--fresh`→`--force` when `--fresh` was given, and `--focus "<focus>"` when a focus was given). It prints `RESUME=yes` when an earlier interrupted run of the **same commit, same uncommitted changes, same plugin version and same focus** left usable work, or `RESUME=fresh` (with a `REASON=`) after clearing anything stale. Then run `"${CLAUDE_PLUGIN_ROOT}/scripts/checkpoint.sh" status "<KB_DIR>"` and read its `PENDING=` line: **that is the work left.** Tell the user in one line when you are resuming and what is already done. Skip every step whose work is not in `PENDING`: step 5 if the inventory is done (the file is reused), step 6 for scopes already done, step 7 for docs already done, step 8 if `audit` is done. **If you ever lose context, run `checkpoint.sh status` and continue from `PENDING`; never restart a run that has a checkpoint.**
+
 **4b. Contracts.** Do **not** load `kb-docs` or `ckb-contract` yourself: the scouts and writers load what they need, and you write neither fragments nor docs. Load `codebase-kb-engine:ckb-contract` (Skill tool) **only if** step 8 or 9 requires you to edit a fragment by hand, and follow it exactly when you do.
 
 **5. Inventory (deterministic).** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/inventory.sh" "<REPO_ROOT>" --out "<KB_DIR>/ckb.draft.d/.inventory.json"`. The full inventory (every candidate file per bucket: manifests, lockfiles, routes, events, datastores, migrations, iac, ci, config, api_specs) goes to that file; you get only a small **digest**: counts per bucket, languages, workspaces, areas by `tier` (`source`/`test`/`docs`), and up to 7 pre-packed `scopes`. Generated, vendored and `.ckb/` paths are already excluded. **The file is the checklist:** every manifest and API spec in it must end up cited. Scouts read their own slice with `kbq.sh inventory`; **never paste inventory lists into a prompt.**
@@ -41,7 +43,7 @@ If the output includes a `MIGRATED=` line, tell the user the visible `ckb/` fold
 - Use `"${CLAUDE_PLUGIN_ROOT}/scripts/kbq.sh"` (`summary`, `names`, `ids`, `claims`, `anchors`, `status`, `inventory`). It is pre-approved and returns compact output.
 - Subagents do the reading and writing, and reply with one-line summaries.
 
-**6. Recon in parallel.** The digest's `scopes` are already packed (source areas weighted over test and docs), at most 7. Launch **all scouts in a single message**:
+**6. Recon in parallel.** The digest's `scopes` are already packed (source areas weighted over test and docs), at most 7. Launch **all pending scouts in a single message** (on a resume only the `scout:` entries of `PENDING`; a scope that already has a valid fragment is not re-run):
 - one `scout-inventory` subagent, scope name `inventory`, for the mechanical buckets (manifests, lockfiles, iac, ci, config, api_specs, migrations);
 - one `scout` subagent per digest scope, for components, interfaces, events, datastores, business rules and workflows.
 
@@ -52,11 +54,11 @@ Give each scout only: the absolute root, `KB_DIR`, the `kbq.sh` path, its **scop
 - If it still fails, the writer lists the scope under `04` → Open questions as `[?] not scanned: <paths>`. **Never fill the gap by inference.**
 - Never retry a guard-blocked command with a workaround.
 
-**7. Human docs.** Run `kbq.sh summary <KB_DIR>` to confirm the fragments exist. Then launch `kb-writer` subagents **in parallel**, for example one for `00`–`03` and one for `04`–`07`. Give them `KB_DIR`, `REPO_ROOT`, the doc list, the focus, and the `kbq.sh` path. If focus was given, they weight toward it but still write all 8.
+**7. Human docs.** (On a resume write only the `doc:` entries of `PENDING`.) Run `kbq.sh summary <KB_DIR>` to confirm the fragments exist. Then launch `kb-writer` subagents **in parallel**, for example one for `00`–`03` and one for `04`–`07`. Give them `KB_DIR`, `REPO_ROOT`, the doc list, the focus, and the `kbq.sh` path. If focus was given, they weight toward it but still write all 8.
 
-**8. Claim audit.** Run `kbq.sh claims <KB_DIR> 15` and give its JSON to the `auditor` subagent. For every verdict that isn't `supported`, ask the owning scout scope's fragment to be corrected: downgrade to `inferred`, or fix the line. A one-line Edit to that fragment is fine (load `ckb-contract` first, see 4b).
+**8. Claim audit.** (Skip when `audit` is done.) After the audit, run `"${CLAUDE_PLUGIN_ROOT}/scripts/checkpoint.sh" mark "<KB_DIR>" audit <supported>/<audited>` on its own. Run `kbq.sh claims <KB_DIR> 15` and give its JSON to the `auditor` subagent. For every verdict that isn't `supported`, ask the owning scout scope's fragment to be corrected: downgrade to `inferred`, or fix the line. A one-line Edit to that fragment is fine (load `ckb-contract` first, see 4b).
 
-**9. Finalize.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/finalize.sh" "<REPO_ROOT>" "<KB_DIR>" --started-at "<start>" --audit "<supported>/<audited>" --inventory "<KB_DIR>/ckb.draft.d/.inventory.json" --attempt <1 or 2> --scouts <scouts launched> --writers <writers launched> --retries <re-dispatches>` (the step 8 audit counts; the inventory file is reused instead of walking the repo again; the counts are recorded locally for benchmarking). In URL mode, add `--mode url --url "<REPO_URL>" --branch "<BRANCH>"`. It does the following:
+**9. Finalize.** Before each attempt run `"${CLAUDE_PLUGIN_ROOT}/scripts/checkpoint.sh" mark "<KB_DIR>" finalize` on its own. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/finalize.sh" "<REPO_ROOT>" "<KB_DIR>" --started-at "<start>" --audit "<supported>/<audited>" --inventory "<KB_DIR>/ckb.draft.d/.inventory.json" --attempt <1 or 2> --scouts <scouts launched> --writers <writers launched> --retries <re-dispatches>` (the step 8 audit counts; the inventory file is reused instead of walking the repo again; the counts are recorded locally for benchmarking). In URL mode, add `--mode url --url "<REPO_URL>" --branch "<BRANCH>"`. It does the following:
 - merges `ckb.draft.d/`, inventories the repo and computes coverage;
 - derives IDs and normalizes everything;
 - lints the docs, checks that the docs and the JSON agree, injects doc front-matter, rewrites local ids to final ids in the docs, and generates `08-reference.md`;

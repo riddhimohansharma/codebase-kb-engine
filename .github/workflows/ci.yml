@@ -46,3 +46,4 @@ jobs:
           tests/archetype.test.sh
           tests/templates.test.sh
           tests/agent-context.test.sh
+          tests/checkpoint.test.sh

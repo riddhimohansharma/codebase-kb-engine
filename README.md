@@ -44,6 +44,8 @@ Run `/kb-agent-context` for a `CLAUDE.md` proposal in seconds with no model spen
 
 ## Use
 
+A long run that is interrupted **resumes where it stopped** when you run `/kb` again (same commit and uncommitted changes only; `/kb --fresh` starts over).
+
 ```text
 /kb                                   # analyse the repo you're in
 /kb billing                           # same, weighted toward a subsystem
