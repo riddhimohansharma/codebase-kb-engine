@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased]
+- Telemetry stays on by default and is now fully transparent: `docs/TELEMETRY.md` shows the exact payload (checked against the upstream allowlist by a test), the first-run notice is shown at the start of `/kb` before anything is sent, and an organization can turn it off for everyone through Claude Code's managed settings (`CKB_TELEMETRY=off` in `env`).
 - First run seeds `CLAUDE.md` by default: the first `/kb` in a repository creates it from proven lines only (create-only, once, never overwriting; skipped for existing `CLAUDE.md`/`AGENTS.md`, symlinks, gitignored paths, submodules, URL mode, sparse repos). Opt out with `/kb --no-agent-context` or `CKB_AGENT_CONTEXT=off`. Recorded in `manifest.json` as `agent_context`.
 - Freshness ignores the repo-root `CLAUDE.md` and `AGENTS.md` (CKB freshness rule updated in the spec), so committing them never makes the KB stale.
 

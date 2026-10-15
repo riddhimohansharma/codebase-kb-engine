@@ -16,6 +16,8 @@ Arguments: `$ARGUMENTS`
 
 If the output includes a `MIGRATED=` line, tell the user the visible `ckb/` folder was renamed to the canonical hidden `.ckb/` and pass on its commit instruction. If it includes an `ADOPTED=` line, tell the user an unmarked `.ckb/` holding only producer files was marked as the KB. Record `REPO_ROOT`, `KB_DIR`, `ADD_DIR_HINT` and the start time (`date -u +%Y-%m-%dT%H:%M:%SZ`). If a script exits non-zero, show its message verbatim, run step 11 if in URL mode, and STOP.
 
+**2a. Telemetry notice.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/telemetry.sh" notice` on its own. If it prints a `TELEMETRY_NOTICE=` line, show its text to the user verbatim now, before any report is sent; it prints nothing after the first time or when telemetry is off.
+
 **2b. First-run agent context (local mode only, default on).** Unless `--no-agent-context` was given, run `"${CLAUDE_PLUGIN_ROOT}/scripts/agent-context.sh" "<REPO_ROOT>" --seed` on its own, before the analysis. On a repository's first run, with no `CLAUDE.md` or `AGENTS.md` present, it creates `CLAUDE.md` from facts the manifests and inventory prove (create-only, never overwrites, never in URL mode). Report its `SEED=` line verbatim: `created` means the user should review `CLAUDE.md` and commit it with the KB; `skipped:<reason>` means nothing was written (`/kb-agent-context` proposes a file instead). Never edit or create `CLAUDE.md` yourself. If the run is later stopped, the seed stays and is not repeated.
 
 **3. Freshness (local mode).** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/freshness.sh" "<REPO_ROOT>"`.

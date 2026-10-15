@@ -163,7 +163,7 @@ To improve the plugin, each `/kb` run shares **one anonymous report** with the m
 ```bash
 codebase-kb-engine telemetry off
 ```
-You can also set `CKB_TELEMETRY=off` or `DO_NOT_TRACK=1`. With `CKB_METRICS=off`, nothing is recorded at all.
+You can also set `CKB_TELEMETRY=off` or `DO_NOT_TRACK=1`; an organization can turn it off for every developer through Claude Code's managed settings. With `CKB_METRICS=off`, nothing is recorded at all. The **exact payload** and every opt-out are in [docs/TELEMETRY.md](docs/TELEMETRY.md).
 
 Reports go over HTTPS to a relay that validates them against a strict allowlist and keeps no IP addresses, then stored privately. The exact field list is in the [User Manual](docs/USER_MANUAL.md#10a-metrics-and-privacy). Run `/kb-stats` to see your own stats, and `codebase-kb-engine telemetry status` to check the setting.
 
