@@ -1,5 +1,5 @@
 repository=https://github.com/riddhimohansharma/codebase-kb-spec.git
-commit=97ff3cac3d4fdc30b9a182b54c949883ab68b8fa
+commit=e760a093c4d483655f411272e6b1161e3889a771
 version=0.1
-synced_at=2026-10-15T04:21:42Z
+synced_at=2026-10-15T05:46:18Z
 files=ckb.schema.json semantic.jq
