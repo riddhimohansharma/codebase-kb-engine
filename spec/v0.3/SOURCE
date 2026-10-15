@@ -1,0 +1,5 @@
+repository=https://github.com/riddhimohansharma/codebase-kb-spec.git
+commit=7a3d7bd9f778d77849c1d54dd39123e9a33e4168
+version=0.3
+synced_at=2026-10-15T06:49:39Z
+files=ckb.schema.json semantic.jq derive.jq views.jq resolve.jq cyclonedx.jq migrate-from-0.2.jq

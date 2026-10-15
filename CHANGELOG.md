@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-10-15
+- Vendors CKB v0.3 and its normative companions (`views.jq`, `resolve.jq`, `cyclonedx.jq`, `migrate-from-0.2.jq`) and the Agent Context Contract v0.1 (`spec/agent-context/v0.1/`); `tools/sync-spec.sh --check` covers them.
+- `kbq.sh view <kb_dir> summary|commands|entity|interfaces|impact`: bounded answers with `path:line` citations, so an agent queries the KB instead of loading it. `kbq.sh sbom <kb_dir>`: a CycloneDX 1.6 SBOM of the repo's direct dependencies.
+- The engine still emits CKB v0.2 (valid input to every v0.3 view); emitting v0.3 (commands, invariants, ACC projection) is the 1.0.0 change.
+
 ## [0.13.0] — 2026-10-15
 - The read-only gate no longer spawns any process for a session that is not armed (about 20 ms per tool call instead of about 58 ms). The fast path only skips work: a second `session_id` anywhere in the payload, an odd session id, a payload naming a plugin script, or `CKB_ENFORCE=always` all take the full path, and tests cover each.
 - Secret redaction runs one `grep` per file instead of one per secret value per file (thousands of process spawns on a large repo), and rescans so a secret nested inside a longer one is also removed.

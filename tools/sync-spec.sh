@@ -16,6 +16,7 @@ rc=0
 for VER in "${vers[@]}"; do
   DST="$ROOT/spec/v$VER"; tmp="$(mktemp -d)"
   if git -C "$SRC" cat-file -e "HEAD:schema/v$VER/semantic.jq" 2>/dev/null; then files="ckb.schema.json semantic.jq derive.jq"
+    for opt in views.jq resolve.jq cyclonedx.jq migrate-from-0.2.jq; do git -C "$SRC" cat-file -e "HEAD:schema/v$VER/$opt" 2>/dev/null && files="$files $opt"; done
     for f in $files; do git -C "$SRC" show "HEAD:schema/v$VER/$f" > "$tmp/$f"; done
   else files="ckb.schema.json semantic.jq"
     git -C "$SRC" show "HEAD:schema/v$VER/ckb.schema.json" > "$tmp/ckb.schema.json"; git -C "$SRC" show "HEAD:tests/semantic.jq" > "$tmp/semantic.jq"
@@ -30,6 +31,15 @@ for VER in "${vers[@]}"; do
     echo "vendored codebase-kb-spec@${sha:0:7} v$VER -> spec/v$VER"
   fi
   rm -rf "$tmp"
+done
+# ACC (agent-context/v*): the normative projection and the reference rule checker
+for d in $(git -C "$SRC" ls-tree -d --name-only HEAD agent-context/ 2>/dev/null); do
+  v="$(basename "$d")"; DSTA="$ROOT/spec/agent-context/$v"; tmpa="$(mktemp -d)"; same=1
+  for f in acc.jq project.jq rules.jq; do git -C "$SRC" show "HEAD:$d/$f" > "$tmpa/$f" 2>/dev/null || continue
+    if [ "$check" = 1 ]; then diff -q "$tmpa/$f" "$DSTA/$f" >/dev/null 2>&1 || same=0; else mkdir -p "$DSTA" && cp "$tmpa/$f" "$DSTA/$f"; fi; done
+  if [ "$check" = 1 ]; then if [ $same = 1 ]; then echo "IN SYNC agent-context/$v"; else echo "DRIFT: spec/agent-context/$v differs; run tools/sync-spec.sh" >&2; rc=1; fi
+  else echo "vendored agent-context/$v -> spec/agent-context/$v"; fi
+  rm -rf "$tmpa"
 done
 # Apache-2.0 (4a/4d): redistributed spec files travel with the licence and notice
 for f in LICENSE NOTICE; do

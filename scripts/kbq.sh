@@ -8,6 +8,9 @@
 #   kbq.sh claims <kb_dir> [max=15]         audit sample: confirmed claims as JSON [{id, claim, path, line}]
 #   kbq.sh anchors <doc.md>                 headings with their anchors and ckb: markers
 #   kbq.sh status <kb_dir>                  status, validation, docs violations, coverage, top warnings from manifest.json
+#   kbq.sh view <kb_dir> summary|commands [kind]|entity <id>|interfaces [service_key]|impact <path>
+#                                           CKB normative views (spec views.jq) over ckb.json: bounded, with path:line citations
+#   kbq.sh sbom <kb_dir>                    CycloneDX 1.6 SBOM of the repo's direct dependencies (spec cyclonedx.jq)
 #   kbq.sh inventory <kb_dir> [scope]       digest of ckb.draft.d/.inventory.json, or ONE scout's slice (an area scope, or `inventory`)
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd -P)"
@@ -46,5 +49,16 @@ case "$cmd" in
     f="$1/ckb.draft.d/.inventory.json"; [ -f "$f" ] || die "no inventory at $f (run: inventory.sh <repo> --out $f)"
     if [ -n "${2:-}" ]; then jq -c --arg mode slice --arg scope "$2" --argjson maxscopes 7 -f "$HERE/inventory-digest.jq" "$f"
     else jq -c --arg mode digest --arg scope "" --argjson maxscopes 7 -f "$HERE/inventory-digest.jq" "$f"; fi ;;
-  *) die "usage: kbq.sh summary|names|ids|claims|anchors|status|inventory ..." ;;
+  view) [ -f "${1:-}/ckb.json" ] || die "usage: kbq.sh view <kb_dir> <view> [arg] (no ckb.json)"
+    V="$HERE/../spec/v0.3"; art="$1/ckb.json"; arg="${3:-}"
+    case "${2:-}" in
+      summary)    jq -c -L "$V" 'include "views"; ckb_view_summary' "$art" ;;
+      commands)   jq -c -L "$V" --arg a "$arg" 'include "views"; ckb_view_commands($a)' "$art" ;;
+      entity)     [ -n "$arg" ] || die "view entity needs an id"; jq -c -L "$V" --arg a "$arg" 'include "views"; ckb_view_entity($a)' "$art" ;;
+      interfaces) jq -c -L "$V" --arg a "$arg" 'include "views"; ckb_view_interfaces($a)' "$art" ;;
+      impact)     [ -n "$arg" ] || die "view impact needs a repo-relative path"; jq -c -L "$V" --arg a "$arg" 'include "views"; ckb_view_impact($a)' "$art" ;;
+      *) die "views: summary | commands [kind] | entity <id> | interfaces [service_key] | impact <path>" ;;
+    esac ;;
+  sbom) [ -f "${1:-}/ckb.json" ] || die "usage: kbq.sh sbom <kb_dir> (no ckb.json)"; jq -f "$HERE/../spec/v0.3/cyclonedx.jq" "$1/ckb.json" ;;
+  *) die "usage: kbq.sh summary|names|ids|claims|anchors|status|inventory|view|sbom ..." ;;
 esac

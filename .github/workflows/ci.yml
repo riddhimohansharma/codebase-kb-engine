@@ -48,3 +48,4 @@ jobs:
           tests/agent-context.test.sh
           tests/checkpoint.test.sh
           tests/derive.test.sh
+          tests/spec-companions.test.sh
