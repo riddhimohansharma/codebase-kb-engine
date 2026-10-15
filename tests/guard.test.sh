@@ -59,6 +59,21 @@ payload nj1 Write file_path "$REPO/src/a.ts" | expect block "arms even when jq i
 prompt s1 "/kb-unlock"; payload s1 Write file_path "$REPO/src/a.ts" | expect allow "/kb-unlock disarms (human-typed only)"
 jq -nc '{session_id:"s2", hook_event_name:"SessionEnd"}' | "$ROOT/hooks/arm.sh"; payload s2 Bash command "touch $REPO/x" | expect allow "SessionEnd disarms"
 
+echo "## fast path (unarmed sessions skip all spawns; nothing else changes)"
+prompt f1 "/kb"
+jq -nc --arg s f1 --arg c "$REPO" --arg v 'x' '{tool_input:{file_path:($c+"/src/a.ts"),content:"{\"session_id\":\"decoy\"}"}, session_id:$s, cwd:$c, tool_name:"Write"}' | expect block "decoy session_id in tool input before the real one cannot unarm the gate"
+jq -nc --arg s f1 --arg c "$REPO" '{tool_input:{command:"touch x \"session_id\":\"decoy\""}, session_id:$s, cwd:$c, tool_name:"Bash"}' | expect block "decoy in a Bash command cannot unarm the gate"
+printf '{"session_id":"f1","tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s/src/a.ts"}}' "$REPO" "$REPO" | expect block "armed session is still blocked on the fast-path shape"
+printf '{"tool_input":{"session_id":"decoy","path":"/x"},"session_id":"f1","tool_name":"mcp__x__write","cwd":"%s"}' "$REPO" | expect block "a nested session_id object key before the real one cannot unarm the gate (MCP input)"
+printf '{"session_id":"nobody","tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s/src/a.ts"}}' "$REPO" "$REPO" | expect allow "unarmed session passes the fast path"
+printf '{"session_id":"x y/../z","tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s/src/a.ts"}}' "$REPO" "$REPO" | expect allow "odd session id takes the full path and is unarmed"
+printf '{"tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s/src/a.ts"}}' "$REPO" "$REPO" | expect allow "no session id at all: full path, unarmed"
+printf '{"session_id":"f2","tool_name":"Bash","cwd":"%s","tool_input":{"command":"\\"%s/scripts/validate.sh\\" x"}}' "$REPO" "$ROOT" | expect allow "a plugin script command takes the full path (and arms)"
+printf '{"session_id":"f2","tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s/src/a.ts"}}' "$REPO" "$REPO" | expect block "...and the session it armed is now enforced"
+printf '{"session_id":"fresh9","tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s/src/a.ts"}}' "$REPO" "$REPO" | ENVX="CKB_ENFORCE=always" expect block "CKB_ENFORCE=always bypasses the fast path"
+t0=$(date +%s); for i in $(seq 1 60); do printf '{"session_id":"nobody%s","tool_name":"Read","cwd":"/","tool_input":{"file_path":"/x"}}' "$i" | "$ROOT/hooks/guard.sh" >/dev/null 2>&1; done; el=$(( $(date +%s) - t0 ))
+[ "$el" -le 6 ] && { echo P >> "$T/r"; echo "PASS timing: 60 unarmed Read calls in ${el}s (fast path)"; } || { echo F >> "$T/r"; echo "FAIL timing: 60 unarmed calls took ${el}s"; }
+
 echo "## writes (armed)"
 export ENVX="CKB_ENFORCE=always"
 payload a Write file_path "$KB/00-overview.md" | expect allow "Write inside marked KB dir"

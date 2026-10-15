@@ -20,6 +20,22 @@ block(){ echo "BLOCKED by codebase-kb-engine read-only mode: $*" >&2; exit 2; }
 jqget(){ command -v jq >/dev/null 2>&1 && printf '%s' "$payload" | jq -r "$1 // empty" 2>/dev/null; }
 rawget(){ printf '%s' "$payload" | grep -oE "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 | sed -E 's/.*"([^"]*)"$/\1/'; }
 
+# FAST PATH (zero process spawns): an UNARMED session whose payload cannot arm one passes through at once. It cannot arm one unless a Bash
+# command names a plugin script, which always contains "scripts"; a session counts as armed when its state file exists (stale files take the full path below).
+# Anything unusual (no session id, odd characters, CKB_ENFORCE=always) also takes the full path, so this only ever skips work, never a check.
+if [ "${CKB_ENFORCE:-}" != always ]; then
+  _r="${payload#*\"session_id\"}"
+  if [ "$_r" != "$payload" ]; then
+    _r="${_r#*:}"; _r="${_r#*\"}"; _sid="${_r%%\"*}"
+    case "$_sid" in ""|*[!A-Za-z0-9_-]*) ;; *)
+      # a second "session_id" anywhere (e.g. inside tool input) could be a decoy: take the full path
+      case "${payload#*\"session_id\"}" in *\"session_id\"*) ;; *)
+        case "$payload" in *scripts*) ;; *) [ -e "$STATE/$_sid" ] || exit 0 ;; esac ;;
+      esac ;;
+    esac
+  fi
+fi
+
 # one jq pass for all fields (latency: this hook runs on every tool call); raw-grep fallback when jq is absent
 sid=""; tool=""; cwd=""; c0=""
 if command -v jq >/dev/null 2>&1; then
